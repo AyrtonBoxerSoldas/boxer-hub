@@ -193,6 +193,25 @@ function getUserRepresentanteId() { return PERFIL?.representante_id || null; }
 // === TOPBAR ===
 
 function renderTopbar(titulo) {
+  const role = getUserRole();
+  const currentPage = location.pathname.split('/').pop() || 'index.html';
+
+  const navItems = [
+    { href: 'catalogo.html', label: 'Catalogo', icon: '&#9783;' },
+    { href: 'pedidos.html', label: 'Pedidos', icon: '&#9776;' },
+    { href: 'financeiro.html', label: 'Financeiro', icon: '&#36;' },
+    { href: 'cadastro.html', label: 'Cadastro', icon: '&#9881;' },
+    { href: 'pesquisas.html', label: 'Pesquisas', icon: '&#9998;' }
+  ];
+  if (['admin', 'manager', 'analyst'].includes(role)) {
+    navItems.push({ href: 'admin.html', label: 'Admin', icon: '&#9878;' });
+  }
+
+  const navHtml = navItems.map(n => {
+    const active = currentPage === n.href ? ' hub-nav-active' : '';
+    return `<a href="${n.href}" class="hub-nav-link${active}">${n.icon} ${n.label}</a>`;
+  }).join('');
+
   const html = `
     <div class="topbar">
       <div class="topbar-left">
@@ -204,11 +223,18 @@ function renderTopbar(titulo) {
         <h1>${titulo}</h1>
       </div>
       <div class="topbar-right">
-        <span class="notif-badge" id="notifBadge" onclick="window.location.href='index.html'" style="display:none" title="Notificacoes pendentes"></span>
+        <span class="notif-badge" id="notifBadge" style="display:none" title="Notificacoes pendentes"></span>
         <span class="user-badge"><strong id="userName"></strong></span>
         <span class="logout-btn" onclick="doLogout()">Sair</span>
       </div>
-    </div>`;
+    </div>
+    <nav class="hub-nav">${navHtml}</nav>
+    <style>
+      .hub-nav{background:#fff;border-bottom:1px solid #d0d8e8;padding:0 24px;display:flex;gap:0;max-width:100%;overflow-x:auto}
+      .hub-nav-link{padding:10px 16px;font-family:Outfit,sans-serif;font-size:13px;font-weight:500;color:#4a5568;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s,border-color .15s}
+      .hub-nav-link:hover{color:#1d327b;border-bottom-color:#25bbee}
+      .hub-nav-active{color:#1d327b;border-bottom-color:#1d327b;font-weight:600}
+    </style>`;
 
   document.body.insertAdjacentHTML('afterbegin', html);
   document.getElementById('userName').textContent = getUserNome();
