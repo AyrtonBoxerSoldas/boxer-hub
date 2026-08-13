@@ -194,7 +194,8 @@ function getUserRepresentanteId() { return PERFIL?.representante_id || null; }
 
 function renderTopbar(titulo) {
   const role = getUserRole();
-  const currentPage = location.pathname.split('/').pop() || 'index.html';
+  const slug = location.pathname.split('/').pop().replace('.html', '') || 'index';
+  const currentPage = slug + '.html';
 
   const navItems = [
     { href: 'catalogo.html', label: 'Catalogo', icon: '&#9783;' },
