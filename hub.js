@@ -12,7 +12,9 @@ async function sb(path, method = 'GET', body = null) {
   const hdrs = {
     'Content-Type': 'application/json',
     'apikey': SB_ANON,
-    'Authorization': 'Bearer ' + (SESSION?.access_token || SB_ANON)
+    'Authorization': 'Bearer ' + (SESSION?.access_token || SB_ANON),
+    'Accept-Profile': 'comercial',
+    'Content-Profile': 'comercial'
   };
   if (method === 'POST') hdrs['Prefer'] = 'return=representation';
   if (method === 'PATCH') hdrs['Prefer'] = 'return=minimal';
@@ -34,7 +36,8 @@ async function sbRpc(fn, params = {}) {
     headers: {
       'Content-Type': 'application/json',
       'apikey': SB_ANON,
-      'Authorization': 'Bearer ' + (SESSION?.access_token || SB_ANON)
+      'Authorization': 'Bearer ' + (SESSION?.access_token || SB_ANON),
+      'Content-Profile': 'comercial'
     },
     body: JSON.stringify(params)
   });
