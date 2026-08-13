@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Admin — Boxer Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
+.topbar{background:linear-gradient(135deg,#1d327b,#162666);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #25bbee}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar h1{color:#fff;font-size:18px;font-weight:700}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.user-badge{color:#93b4d4;font-size:13px}.user-badge strong{color:#fff}
+.logout-btn{color:#93b4d4;font-size:13px;padding:6px 12px;border:1px solid rgba(255,255,255,.2);border-radius:6px;cursor:pointer}
+.logout-btn:hover{background:rgba(255,255,255,.1);color:#fff}
+.notif-badge{background:#e30613;color:#fff;font-size:10px;padding:2px 6px;border-radius:10px;cursor:pointer}
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-family:Outfit;font-size:13px;font-weight:500;z-index:2000;animation:slideIn .3s;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.toast-success{background:#16a34a}.toast-error{background:#dc2626}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+
+.tabs{display:flex;gap:4px;padding:16px 24px 0;max-width:1400px;margin:0 auto;flex-wrap:wrap}
+.tab{padding:10px 20px;border-radius:8px 8px 0 0;border:1px solid #d0d8e8;border-bottom:none;background:#fff;color:#4a5568;cursor:pointer;font-family:Outfit;font-size:14px;font-weight:500}
+.tab:hover{color:#1d327b}
+.tab.active{background:#1d327b;color:#fff;border-color:#1d327b}
+.panel{max-width:1400px;margin:0 auto;padding:0 24px 24px}
+.panel-content{background:#fff;border:1px solid #d0d8e8;border-radius:0 8px 8px 8px;padding:20px}
+.hidden{display:none!important}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{padding:8px 12px;text-align:left;color:#718096;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e2e8f0;background:#f7fafc}
+tbody td{padding:8px 12px;border-bottom:1px solid #e2e8f0;vertical-align:middle}
+tbody tr:hover{background:#f0f7ff}
+
+.btn{padding:8px 16px;border-radius:8px;border:1px solid;font-family:Outfit;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.btn-primary{background:#1d327b;color:#fff;border-color:#1d327b}.btn-primary:hover{background:#162666}
+.btn-outline{background:#fff;color:#4a5568;border-color:#c3cfe2}.btn-outline:hover{border-color:#25bbee;color:#1d327b}
+.btn-danger{background:#fff;color:#e30613;border-color:#fecaca}.btn-danger:hover{background:#fee2e2}
+.btn-sm{padding:4px 10px;font-size:12px}
+
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.page-title{font-size:16px;font-weight:600;color:#1d327b}
+.empty-state{text-align:center;padding:40px 20px;color:#718096}
+.form-row{margin-bottom:14px}
+.form-row label{display:block;font-size:12px;font-weight:500;color:#4a5568;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:8px 12px;border:1px solid #c3cfe2;border-radius:6px;font-family:Outfit;font-size:13px;outline:none}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:#25bbee}
+.form-row-inline{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0}
+
+.role-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.role-admin{background:#7c3aed;color:#fff}
+.role-manager{background:#1d327b;color:#fff}
+.role-analyst{background:#25bbee;color:#fff}
+.role-financial{background:#16a34a;color:#fff}
+.role-rep{background:#e97316;color:#fff}
+.role-dealer{background:#6b7280;color:#fff}
+</style>
+</head>
+<body>
+
+<div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('usuarios',this)">Usuarios</div>
+  <div class="tab" onclick="showTab('campanhas',this)">Campanhas</div>
+  <div class="tab" onclick="showTab('precos',this)">Tabelas de Preco</div>
+  <div class="tab" onclick="showTab('regras',this)">Regras Comerciais</div>
+  <div class="tab" onclick="showTab('logs',this)">Logs</div>
+</div>
+<div class="panel">
+  <div class="panel-content" id="tab-usuarios">
+    <div class="page-header">
+      <h2 class="page-title">Usuarios do Hub</h2>
+      <button class="btn btn-primary" onclick="openNovoUsuario()">Novo usuario</button>
+    </div>
+    <div id="usuariosList"></div>
+  </div>
+  <div class="panel-content hidden" id="tab-campanhas">
+    <div class="page-header">
+      <h2 class="page-title">Campanhas</h2>
+      <button class="btn btn-primary" onclick="openNovaCampanha()">Nova campanha</button>
+    </div>
+    <div id="campanhasList"></div>
+  </div>
+  <div class="panel-content hidden" id="tab-precos">
+    <div class="page-header"><h2 class="page-title">Tabelas de Preco</h2></div>
+    <div id="precosList"></div>
+  </div>
+  <div class="panel-content hidden" id="tab-regras">
+    <div class="page-header"><h2 class="page-title">Regras Comerciais</h2></div>
+    <div id="regrasList"></div>
+  </div>
+  <div class="panel-content hidden" id="tab-logs">
+    <div class="page-header"><h2 class="page-title">Logs de Auditoria</h2></div>
+    <div id="logsList"></div>
+  </div>
+</div>
+
+<script src="hub.js"></script>
+<script>
+if (!requireAuth()) throw 'auth';
+
+function showTab(n, el) {
+  document.querySelectorAll('.panel-content').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + n).classList.remove('hidden');
+  el.classList.add('active');
+}
+
+(async () => {
+  await loadPerfil();
+  if (!['admin','manager','analyst'].includes(getUserRole())) {
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#718096;font-family:Outfit"><h2>Acesso restrito</h2></div>';
+    return;
+  }
+  renderTopbar('Admin');
+  await loadUsuarios();
+})();
+
+async function loadUsuarios() {
+  const wrap = document.getElementById('usuariosList');
+  try {
+    const users = await sb('/hub_perfis?order=nome.asc&select=*');
+    if (!users.length) { wrap.innerHTML = '<div class="empty-state"><h3>Nenhum usuario</h3></div>'; return; }
+    wrap.innerHTML = `<div style="overflow-x:auto"><table>
+      <thead><tr><th>Nome</th><th>Email</th><th>Tipo</th><th>Role</th><th>Ativo</th><th></th></tr></thead>
+      <tbody>${users.map(u => `<tr>
+        <td><strong>${u.nome}</strong></td>
+        <td>${u.email}</td>
+        <td>${u.tipo}</td>
+        <td><span class="role-badge role-${u.role}">${u.role}</span></td>
+        <td>${u.ativo ? 'Sim' : 'Nao'}</td>
+        <td><button class="btn btn-outline btn-sm" onclick="editUsuario('${u.id}')">Editar</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) { wrap.innerHTML = '<div class="empty-state"><h3>Erro ao carregar usuarios</h3></div>'; }
+}
+
+function openNovoUsuario() {
+  openModal(`
+    <h3 style="font-size:18px;margin-bottom:16px;color:#1d327b">Novo Usuario</h3>
+    <div class="form-row-inline">
+      <div class="form-row"><label>Nome</label><input id="uNome" placeholder="Nome completo"></div>
+      <div class="form-row"><label>Email</label><input id="uEmail" type="email" placeholder="email@empresa.com"></div>
+    </div>
+    <div class="form-row-inline">
+      <div class="form-row">
+        <label>Tipo</label>
+        <select id="uTipo">
+          <option value="cliente">Cliente</option>
+          <option value="representante">Representante</option>
+          <option value="funcionario">Funcionario</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Role</label>
+        <select id="uRole">
+          <option value="dealer">Dealer</option>
+          <option value="rep">Rep</option>
+          <option value="analyst">Analyst</option>
+          <option value="manager">Manager</option>
+          <option value="financial">Financial</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row"><label>Telefone</label><input id="uTel" placeholder="(11) 99999-9999"></div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarUsuario()">Criar</button>
+    </div>
+  `);
+}
+
+async function salvarUsuario() {
+  toast('Criacao de usuario em desenvolvimento');
+  closeModal();
+}
+
+async function editUsuario(id) {
+  toast('Edicao de usuario em desenvolvimento');
+}
+
+function openNovaCampanha() {
+  toast('Campanhas em desenvolvimento');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Financeiro — Boxer Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
+.topbar{background:linear-gradient(135deg,#1d327b,#162666);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #25bbee}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar h1{color:#fff;font-size:18px;font-weight:700}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.user-badge{color:#93b4d4;font-size:13px}.user-badge strong{color:#fff}
+.logout-btn{color:#93b4d4;font-size:13px;padding:6px 12px;border:1px solid rgba(255,255,255,.2);border-radius:6px;cursor:pointer}
+.logout-btn:hover{background:rgba(255,255,255,.1);color:#fff}
+.notif-badge{background:#e30613;color:#fff;font-size:10px;padding:2px 6px;border-radius:10px;cursor:pointer}
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-family:Outfit;font-size:13px;font-weight:500;z-index:2000;animation:slideIn .3s;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.toast-success{background:#16a34a}.toast-error{background:#dc2626}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:550px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+
+.tabs{display:flex;gap:4px;padding:16px 24px 0;max-width:1400px;margin:0 auto}
+.tab{padding:10px 20px;border-radius:8px 8px 0 0;border:1px solid #d0d8e8;border-bottom:none;background:#fff;color:#4a5568;cursor:pointer;font-family:Outfit;font-size:14px;font-weight:500}
+.tab:hover{color:#1d327b}
+.tab.active{background:#1d327b;color:#fff;border-color:#1d327b}
+.panel{max-width:1400px;margin:0 auto;padding:0 24px 24px}
+.panel-content{background:#fff;border:1px solid #d0d8e8;border-radius:0 8px 8px 8px;padding:20px}
+.hidden{display:none!important}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{padding:8px 12px;text-align:left;color:#718096;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e2e8f0;background:#f7fafc}
+tbody td{padding:8px 12px;border-bottom:1px solid #e2e8f0;vertical-align:middle}
+tbody tr:hover{background:#f0f7ff}
+
+.btn{padding:8px 16px;border-radius:8px;border:1px solid;font-family:Outfit;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.btn-primary{background:#1d327b;color:#fff;border-color:#1d327b}.btn-primary:hover{background:#162666}
+.btn-outline{background:#fff;color:#4a5568;border-color:#c3cfe2}.btn-outline:hover{border-color:#25bbee;color:#1d327b}
+.btn-sm{padding:4px 10px;font-size:12px}
+
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px}
+.kpi-label{font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.kpi-value{font-size:20px;font-weight:700;color:#1d327b}
+.kpi-value.danger{color:#dc2626}
+.kpi-value.warning{color:#e97316}
+
+.status-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600}
+.status-aberto{background:#dbeafe;color:#1e40af}
+.status-vencido{background:#fee2e2;color:#991b1b}
+.status-pago{background:#d1fae5;color:#065f46}
+.status-parcial{background:#fef3c7;color:#92400e}
+
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.page-title{font-size:16px;font-weight:600;color:#1d327b}
+.empty-state{text-align:center;padding:40px 20px;color:#718096}
+.form-row{margin-bottom:14px}
+.form-row label{display:block;font-size:12px;font-weight:500;color:#4a5568;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:8px 12px;border:1px solid #c3cfe2;border-radius:6px;font-family:Outfit;font-size:13px;outline:none}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:#25bbee}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0}
+</style>
+</head>
+<body>
+
+<div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('titulos',this)">Titulos</div>
+  <div class="tab" onclick="showTab('nfs',this)">Notas Fiscais</div>
+  <div class="tab" onclick="showTab('credito',this)">Credito</div>
+</div>
+<div class="panel">
+  <div class="panel-content" id="tab-titulos">
+    <div id="kpiResumo"></div>
+    <div id="titulosList"></div>
+  </div>
+  <div class="panel-content hidden" id="tab-nfs">
+    <div class="page-header"><h2 class="page-title">Notas Fiscais</h2></div>
+    <div id="nfsList"></div>
+  </div>
+  <div class="panel-content hidden" id="tab-credito">
+    <div class="page-header">
+      <h2 class="page-title">Solicitacoes de Credito</h2>
+      <button class="btn btn-primary" onclick="openSolicitarCredito()">Solicitar</button>
+    </div>
+    <div id="creditoList"></div>
+  </div>
+</div>
+
+<script src="hub.js"></script>
+<script>
+if (!requireAuth()) throw 'auth';
+
+function showTab(n, el) {
+  document.querySelectorAll('.panel-content').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + n).classList.remove('hidden');
+  el.classList.add('active');
+}
+
+(async () => {
+  await loadPerfil();
+  renderTopbar('Financeiro');
+  await Promise.all([loadResumo(), loadTitulos(), loadNFs(), loadCredito()]);
+})();
+
+async function loadResumo() {
+  const wrap = document.getElementById('kpiResumo');
+  try {
+    const rows = await sb('/hub_v_financeiro_cliente?select=*&limit=1');
+    if (!rows.length) { wrap.innerHTML = ''; return; }
+    const r = rows[0];
+    wrap.innerHTML = `<div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Limite Total</div><div class="kpi-value">${fmtMoeda(r.limite_credito)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Disponivel</div><div class="kpi-value">${fmtMoeda(r.limite_disponivel)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">A Vencer</div><div class="kpi-value">${fmtMoeda(r.total_a_vencer)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Vencido</div><div class="kpi-value ${r.total_vencido > 0 ? 'danger' : ''}">${fmtMoeda(r.total_vencido)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Maior Atraso</div><div class="kpi-value ${r.maior_atraso_dias > 0 ? 'warning' : ''}">${r.maior_atraso_dias} dias</div></div>
+    </div>`;
+  } catch {}
+}
+
+async function loadTitulos() {
+  const wrap = document.getElementById('titulosList');
+  try {
+    const titulos = await sb('/hub_titulos?ativo=eq.true&order=data_vencimento.asc&select=*');
+    if (!titulos.length) { wrap.innerHTML = '<div class="empty-state"><h3>Nenhum titulo encontrado</h3></div>'; return; }
+    wrap.innerHTML = `<div style="overflow-x:auto"><table>
+      <thead><tr><th>Numero</th><th>Vencimento</th><th>Valor</th><th>Aberto</th><th>Status</th><th>Atraso</th><th></th></tr></thead>
+      <tbody>${titulos.map(t => `<tr>
+        <td>${t.numero_titulo || '—'}</td>
+        <td>${fmtData(t.data_vencimento)}</td>
+        <td>${fmtMoeda(t.valor_original)}</td>
+        <td>${fmtMoeda(t.valor_aberto)}</td>
+        <td><span class="status-badge status-${t.status}">${t.status}</span></td>
+        <td>${t.dias_atraso > 0 ? t.dias_atraso + 'd' : '—'}</td>
+        <td>${t.url_boleto ? `<a href="${t.url_boleto}" target="_blank" class="btn btn-outline btn-sm">Boleto</a>` : ''}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) { wrap.innerHTML = '<div class="empty-state"><h3>Erro ao carregar titulos</h3></div>'; }
+}
+
+async function loadNFs() {
+  const wrap = document.getElementById('nfsList');
+  try {
+    const nfs = await sb('/hub_notas_fiscais?ativo=eq.true&order=data_emissao.desc&select=*');
+    if (!nfs.length) { wrap.innerHTML = '<div class="empty-state"><h3>Nenhuma nota fiscal encontrada</h3></div>'; return; }
+    wrap.innerHTML = `<div style="overflow-x:auto"><table>
+      <thead><tr><th>Numero</th><th>Serie</th><th>Emissao</th><th>Valor</th><th>Chave</th><th></th></tr></thead>
+      <tbody>${nfs.map(n => `<tr>
+        <td><strong>${n.numero_nf}</strong></td>
+        <td>${n.serie || '—'}</td>
+        <td>${fmtData(n.data_emissao)}</td>
+        <td>${fmtMoeda(n.valor_total)}</td>
+        <td style="font-size:10px;color:#718096;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${n.chave_acesso || ''}">${n.chave_acesso || '—'}</td>
+        <td style="display:flex;gap:4px">
+          ${n.pdf_path ? `<a href="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${n.pdf_path}" target="_blank" class="btn btn-outline btn-sm">PDF</a>` : ''}
+          ${n.xml_path ? `<a href="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${n.xml_path}" target="_blank" class="btn btn-outline btn-sm">XML</a>` : ''}
+        </td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) { wrap.innerHTML = '<div class="empty-state"><h3>Erro ao carregar notas</h3></div>'; }
+}
+
+async function loadCredito() {
+  const wrap = document.getElementById('creditoList');
+  try {
+    const solic = await sb('/hub_solicitacoes_credito?ativo=eq.true&order=criado_em.desc&select=*');
+    if (!solic.length) { wrap.innerHTML = '<div class="empty-state"><h3>Nenhuma solicitacao</h3></div>'; return; }
+    wrap.innerHTML = `<div style="overflow-x:auto"><table>
+      <thead><tr><th>Tipo</th><th>Valor Solicitado</th><th>Valor Aprovado</th><th>Status</th><th>Data</th></tr></thead>
+      <tbody>${solic.map(s => `<tr>
+        <td>${s.tipo.replace(/_/g,' ')}</td>
+        <td>${fmtMoeda(s.valor_solicitado)}</td>
+        <td>${s.valor_aprovado ? fmtMoeda(s.valor_aprovado) : '—'}</td>
+        <td><span class="status-badge status-${s.status === 'aprovado' ? 'pago' : s.status === 'rejeitado' ? 'vencido' : 'aberto'}">${s.status}</span></td>
+        <td>${fmtData(s.criado_em)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) { wrap.innerHTML = '<div class="empty-state"><h3>Erro ao carregar solicitacoes</h3></div>'; }
+}
+
+function openSolicitarCredito() {
+  openModal(`
+    <h3 style="font-size:18px;margin-bottom:16px;color:#1d327b">Solicitar Credito</h3>
+    <div class="form-row">
+      <label>Tipo</label>
+      <select id="credTipo">
+        <option value="aumento_limite">Aumento de limite</option>
+        <option value="antecipacao_pagamento">Antecipacao de pagamento</option>
+        <option value="prazo_especial">Prazo especial</option>
+      </select>
+    </div>
+    <div class="form-row"><label>Valor (R$)</label><input id="credValor" type="number" step="0.01" placeholder="0,00"></div>
+    <div class="form-row"><label>Justificativa</label><textarea id="credJust" rows="3" placeholder="Descreva o motivo da solicitacao..."></textarea></div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="enviarSolicitacao()">Enviar</button>
+    </div>
+  `);
+}
+
+async function enviarSolicitacao() {
+  const tipo = document.getElementById('credTipo').value;
+  const valor = parseFloat(document.getElementById('credValor').value);
+  const just = document.getElementById('credJust').value.trim();
+  if (!just) { toast('Preencha a justificativa', 'error'); return; }
+
+  try {
+    await sb('/hub_solicitacoes_credito', 'POST', {
+      cliente_id: getUserClienteId(),
+      solicitante_id: PERFIL.id,
+      tipo, valor_solicitado: valor || null, justificativa: just
+    });
+    closeModal();
+    toast('Solicitacao enviada');
+    loadCredito();
+  } catch (e) { toast('Erro ao enviar: ' + e.message, 'error'); }
+}
+</script>
+</body>
+</html>

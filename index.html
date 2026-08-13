@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Boxer Hub — Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1d327b 0%,#0f1d4a 100%)}
+.login-card{background:#fff;border-radius:10px;padding:48px 40px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.25)}
+.login-logo{text-align:center;margin-bottom:8px}
+.login-card h1{font-size:22px;color:#1d327b;font-weight:700;text-align:center;margin:12px 0 4px}
+.login-card .subtitle{font-size:13px;color:#718096;text-align:center;margin-bottom:28px}
+.field{margin-bottom:18px}
+.field label{display:block;font-size:11px;font-weight:600;color:#718096;margin-bottom:6px;text-transform:uppercase;letter-spacing:.8px}
+.field input{width:100%;padding:11px 14px;border:1.5px solid #d0d8e8;border-radius:8px;font-size:14px;font-family:'Outfit',sans-serif;outline:none;transition:border-color .2s}
+.field input:focus{border-color:#25bbee;box-shadow:0 0 0 3px rgba(37,187,238,.12)}
+.btn-login{width:100%;padding:13px;background:#1d327b;color:#fff;border:none;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:background .2s}
+.btn-login:hover{background:#162666}
+.err-msg{background:#fee2e2;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;border:1px solid #fecaca;display:none}
+.login-hint{text-align:center;margin-top:16px;font-size:12px;color:#a0aec0}
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg width="56" height="56" viewBox="0 0 200 200">
+        <rect x="10" y="10" width="180" height="180" rx="30" fill="#e30613"/>
+        <line x1="30" y1="30" x2="82" y2="95" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+        <polygon points="100,38 108,80 145,55 118,88 158,92 120,105 148,138 108,118 100,162 92,118 52,138 80,105 42,92 82,88 55,55 92,80" fill="#fff"/>
+      </svg>
+    </div>
+    <h1>Boxer Hub</h1>
+    <p class="subtitle">Plataforma Comercial B2B</p>
+    <div class="err-msg" id="loginErr"></div>
+    <div class="field"><label>Email</label><input id="loginEmail" type="email" placeholder="seu@email.com"></div>
+    <div class="field"><label>Senha</label><input id="loginPass" type="password" placeholder="••••••••"></div>
+    <button class="btn-login" onclick="doLogin()">Entrar</button>
+    <p class="login-hint">Acesso restrito a parceiros Boxer Soldas</p>
+  </div>
+</div>
+
+<script src="hub.js"></script>
+<script>
+document.getElementById('loginPass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+function onLoginSuccess() {
+  window.location.href = 'catalogo.html';
+}
+
+if (restoreSession()) {
+  window.location.href = 'catalogo.html';
+}
+</script>
+</body>
+</html>

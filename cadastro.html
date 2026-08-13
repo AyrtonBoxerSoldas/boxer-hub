@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Cadastro — Boxer Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
+.topbar{background:linear-gradient(135deg,#1d327b,#162666);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #25bbee}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar h1{color:#fff;font-size:18px;font-weight:700}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.user-badge{color:#93b4d4;font-size:13px}.user-badge strong{color:#fff}
+.logout-btn{color:#93b4d4;font-size:13px;padding:6px 12px;border:1px solid rgba(255,255,255,.2);border-radius:6px;cursor:pointer}
+.logout-btn:hover{background:rgba(255,255,255,.1);color:#fff}
+.notif-badge{background:#e30613;color:#fff;font-size:10px;padding:2px 6px;border-radius:10px;cursor:pointer}
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-family:Outfit;font-size:13px;font-weight:500;z-index:2000;animation:slideIn .3s;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.toast-success{background:#16a34a}.toast-error{background:#dc2626}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:550px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+
+.page-wrap{max-width:900px;margin:0 auto;padding:20px 24px}
+.section{background:#fff;border:1px solid #d0d8e8;border-radius:10px;padding:20px;margin-bottom:16px}
+.section-title{font-size:14px;font-weight:600;color:#1d327b;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #e2e8f0;text-transform:uppercase;letter-spacing:.5px}
+.data-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px}
+.data-item{margin-bottom:4px}
+.data-label{font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px}
+.data-value{font-size:14px;font-weight:500;color:#1a202c;margin-top:2px}
+
+.btn{padding:8px 16px;border-radius:8px;border:1px solid;font-family:Outfit;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.btn-primary{background:#1d327b;color:#fff;border-color:#1d327b}.btn-primary:hover{background:#162666}
+.btn-outline{background:#fff;color:#4a5568;border-color:#c3cfe2}.btn-outline:hover{border-color:#25bbee;color:#1d327b}
+.btn-sm{padding:4px 10px;font-size:12px}
+
+.endereco-card{padding:12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px}
+.endereco-tipo{font-size:10px;color:#fff;background:#1d327b;padding:2px 8px;border-radius:4px;display:inline-block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.endereco-texto{font-size:13px;color:#4a5568;line-height:1.5}
+
+.doc-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #e2e8f0}
+.doc-row:last-child{border-bottom:none}
+.doc-info{font-size:13px;color:#4a5568}
+.doc-status{font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px}
+.doc-pendente{background:#fef3c7;color:#92400e}
+.doc-aprovado{background:#d1fae5;color:#065f46}
+.doc-rejeitado{background:#fee2e2;color:#991b1b}
+
+.empty-state{text-align:center;padding:40px 20px;color:#718096}
+.form-row{margin-bottom:14px}
+.form-row label{display:block;font-size:12px;font-weight:500;color:#4a5568;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:8px 12px;border:1px solid #c3cfe2;border-radius:6px;font-family:Outfit;font-size:13px;outline:none}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:#25bbee}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0}
+</style>
+</head>
+<body>
+
+<div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<div class="page-wrap">
+  <div id="cadastroWrap"><div class="empty-state"><h3>Carregando...</h3></div></div>
+</div>
+
+<script src="hub.js"></script>
+<script>
+if (!requireAuth()) throw 'auth';
+
+(async () => {
+  await loadPerfil();
+  renderTopbar('Cadastro');
+  await loadCadastro();
+})();
+
+async function loadCadastro() {
+  const wrap = document.getElementById('cadastroWrap');
+  const clienteId = getUserClienteId();
+
+  if (!clienteId) {
+    wrap.innerHTML = '<div class="empty-state"><h3>Cadastro nao vinculado</h3><p>Seu perfil nao esta vinculado a um cliente.</p></div>';
+    return;
+  }
+
+  try {
+    const [cliente] = await sb('/hub_clientes?id=eq.' + clienteId + '&select=*');
+    const enderecos = await sb('/hub_enderecos?cliente_id=eq.' + clienteId + '&ativo=eq.true&order=tipo.asc&select=*');
+    const docs = await sb('/hub_documentos_cadastrais?cliente_id=eq.' + clienteId + '&ativo=eq.true&order=criado_em.desc&select=*');
+
+    if (!cliente) { wrap.innerHTML = '<div class="empty-state"><h3>Cliente nao encontrado</h3></div>'; return; }
+
+    wrap.innerHTML = `
+      <div class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="section-title">Dados da Empresa</div>
+          <button class="btn btn-outline btn-sm" onclick="solicitarAlteracao()">Solicitar alteracao</button>
+        </div>
+        <div class="data-grid">
+          <div class="data-item"><div class="data-label">Razao Social</div><div class="data-value">${cliente.razao_social}</div></div>
+          <div class="data-item"><div class="data-label">Nome Fantasia</div><div class="data-value">${cliente.nome_fantasia || '—'}</div></div>
+          <div class="data-item"><div class="data-label">CNPJ</div><div class="data-value">${fmtCnpj(cliente.cnpj)}</div></div>
+          <div class="data-item"><div class="data-label">Inscricao Estadual</div><div class="data-value">${cliente.inscricao_estadual || '—'}</div></div>
+          <div class="data-item"><div class="data-label">Segmento</div><div class="data-value">${cliente.segmento || '—'}</div></div>
+          <div class="data-item"><div class="data-label">Canal</div><div class="data-value">${cliente.canal || '—'}</div></div>
+          <div class="data-item"><div class="data-label">Porte</div><div class="data-value">${cliente.porte || '—'}</div></div>
+          <div class="data-item"><div class="data-label">Status</div><div class="data-value">${cliente.status_cadastro}</div></div>
+          <div class="data-item"><div class="data-label">Email</div><div class="data-value">${cliente.email_principal || '—'}</div></div>
+          <div class="data-item"><div class="data-label">Telefone</div><div class="data-value">${cliente.telefone || '—'}</div></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Enderecos</div>
+        ${enderecos.length ? enderecos.map(e => `
+          <div class="endereco-card">
+            <span class="endereco-tipo">${e.tipo}</span>${e.padrao ? ' <span style="font-size:10px;color:#16a34a;font-weight:600">PADRAO</span>' : ''}
+            <div class="endereco-texto">${e.logradouro}, ${e.numero}${e.complemento ? ' - ' + e.complemento : ''}<br>${e.bairro} — ${e.cidade}/${e.uf} — CEP ${e.cep}</div>
+          </div>
+        `).join('') : '<div class="empty-state"><h3>Nenhum endereco cadastrado</h3></div>'}
+      </div>
+
+      <div class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="section-title">Documentos</div>
+          <button class="btn btn-outline btn-sm" onclick="openUploadDoc()">Enviar documento</button>
+        </div>
+        ${docs.length ? docs.map(d => `
+          <div class="doc-row">
+            <div class="doc-info">${d.nome || d.tipo.replace(/_/g, ' ')}</div>
+            <div><span class="doc-status doc-${d.status}">${d.status}</span></div>
+          </div>
+        `).join('') : '<div class="empty-state"><h3>Nenhum documento enviado</h3></div>'}
+      </div>
+    `;
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty-state"><h3>Erro ao carregar cadastro</h3><p>' + e.message + '</p></div>';
+  }
+}
+
+function solicitarAlteracao() {
+  openModal(`
+    <h3 style="font-size:18px;margin-bottom:16px;color:#1d327b">Solicitar Alteracao Cadastral</h3>
+    <p style="font-size:13px;color:#718096;margin-bottom:16px">Descreva o que precisa ser alterado. A equipe Boxer analisara sua solicitacao.</p>
+    <div class="form-row"><label>O que alterar?</label><textarea id="altDescricao" rows="4" placeholder="Ex: Atualizar telefone para (11) 99999-9999..."></textarea></div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="enviarAlteracao()">Enviar solicitacao</button>
+    </div>
+  `);
+}
+
+async function enviarAlteracao() {
+  const desc = document.getElementById('altDescricao').value.trim();
+  if (!desc) { toast('Descreva a alteracao', 'error'); return; }
+  toast('Solicitacao enviada');
+  closeModal();
+}
+
+function openUploadDoc() {
+  openModal(`
+    <h3 style="font-size:18px;margin-bottom:16px;color:#1d327b">Enviar Documento</h3>
+    <div class="form-row">
+      <label>Tipo do documento</label>
+      <select id="docTipo">
+        <option value="contrato_social">Contrato Social</option>
+        <option value="cartao_cnpj">Cartao CNPJ</option>
+        <option value="comprovante_endereco">Comprovante de Endereco</option>
+        <option value="balanco">Balanco</option>
+        <option value="referencia_comercial">Referencia Comercial</option>
+        <option value="outro">Outro</option>
+      </select>
+    </div>
+    <div class="form-row"><label>Arquivo</label><input id="docArquivo" type="file" accept=".pdf,.jpg,.jpeg,.png"></div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="uploadDoc()">Enviar</button>
+    </div>
+  `);
+}
+
+async function uploadDoc() {
+  const tipo = document.getElementById('docTipo').value;
+  const file = document.getElementById('docArquivo').files[0];
+  if (!file) { toast('Selecione um arquivo', 'error'); return; }
+  toast('Upload em desenvolvimento');
+  closeModal();
+}
+</script>
+</body>
+</html>

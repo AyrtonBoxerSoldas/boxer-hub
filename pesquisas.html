@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Pesquisas — Boxer Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
+.topbar{background:linear-gradient(135deg,#1d327b,#162666);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #25bbee}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar h1{color:#fff;font-size:18px;font-weight:700}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.user-badge{color:#93b4d4;font-size:13px}.user-badge strong{color:#fff}
+.logout-btn{color:#93b4d4;font-size:13px;padding:6px 12px;border:1px solid rgba(255,255,255,.2);border-radius:6px;cursor:pointer}
+.logout-btn:hover{background:rgba(255,255,255,.1);color:#fff}
+.notif-badge{background:#e30613;color:#fff;font-size:10px;padding:2px 6px;border-radius:10px;cursor:pointer}
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-family:Outfit;font-size:13px;font-weight:500;z-index:2000;animation:slideIn .3s;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.toast-success{background:#16a34a}.toast-error{background:#dc2626}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+.page-wrap{max-width:800px;margin:0 auto;padding:20px 24px}
+.pesquisa-card{background:#fff;border:1px solid #d0d8e8;border-radius:10px;padding:20px;margin-bottom:16px}
+.pesquisa-titulo{font-size:16px;font-weight:600;color:#1d327b;margin-bottom:4px}
+.pesquisa-desc{font-size:13px;color:#718096;margin-bottom:12px}
+.pesquisa-meta{font-size:11px;color:#a0aec0}
+
+.pergunta-wrap{margin-bottom:20px}
+.pergunta-texto{font-size:14px;font-weight:500;color:#1a202c;margin-bottom:8px}
+.pergunta-texto .obrig{color:#e30613;margin-left:4px}
+.opcao-row{display:flex;align-items:center;gap:8px;padding:6px 0}
+.opcao-row input[type="radio"],.opcao-row input[type="checkbox"]{accent-color:#1d327b}
+.opcao-row label{font-size:13px;color:#4a5568;cursor:pointer}
+input[type="text"],textarea,input[type="number"]{width:100%;padding:8px 12px;border:1px solid #c3cfe2;border-radius:6px;font-family:Outfit;font-size:13px;outline:none}
+input:focus,textarea:focus{border-color:#25bbee}
+.escala-row{display:flex;gap:8px;align-items:center}
+.escala-row label{font-size:12px;color:#718096}
+.escala-row input[type="range"]{flex:1;accent-color:#1d327b}
+.escala-valor{font-size:16px;font-weight:700;color:#1d327b;min-width:30px;text-align:center}
+
+.btn{padding:8px 16px;border-radius:8px;border:1px solid;font-family:Outfit;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.btn-primary{background:#1d327b;color:#fff;border-color:#1d327b}.btn-primary:hover{background:#162666}
+.btn-outline{background:#fff;color:#4a5568;border-color:#c3cfe2}.btn-outline:hover{border-color:#25bbee;color:#1d327b}
+.empty-state{text-align:center;padding:40px 20px;color:#718096}
+</style>
+</head>
+<body>
+
+<div class="page-wrap">
+  <div id="pesquisasWrap"><div class="empty-state"><h3>Carregando pesquisas...</h3></div></div>
+</div>
+
+<script src="hub.js"></script>
+<script>
+if (!requireAuth()) throw 'auth';
+
+(async () => {
+  await loadPerfil();
+  renderTopbar('Pesquisas');
+  await loadPesquisas();
+})();
+
+async function loadPesquisas() {
+  const wrap = document.getElementById('pesquisasWrap');
+  try {
+    const pesquisas = await sb('/hub_pesquisas?status=eq.ativa&order=data_inicio.desc&select=*');
+    if (!pesquisas.length) {
+      wrap.innerHTML = '<div class="empty-state"><h3>Nenhuma pesquisa ativa</h3><p>Voce sera notificado quando houver pesquisas para responder.</p></div>';
+      return;
+    }
+    wrap.innerHTML = pesquisas.map(p => `
+      <div class="pesquisa-card">
+        <div class="pesquisa-titulo">${p.titulo}</div>
+        ${p.descricao ? `<div class="pesquisa-desc">${p.descricao}</div>` : ''}
+        <div class="pesquisa-meta">Disponivel ate ${fmtData(p.data_fim)} ${p.anonima ? ' — Resposta anonima' : ''}</div>
+        <div style="margin-top:12px">
+          <button class="btn btn-primary" onclick="abrirPesquisa('${p.id}')">Responder</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty-state"><h3>Erro ao carregar pesquisas</h3></div>';
+  }
+}
+
+async function abrirPesquisa(pesquisaId) {
+  const wrap = document.getElementById('pesquisasWrap');
+  try {
+    const [pesquisa] = await sb('/hub_pesquisas?id=eq.' + pesquisaId + '&select=*');
+    const perguntas = await sb('/hub_pesquisa_perguntas?pesquisa_id=eq.' + pesquisaId + '&order=ordem.asc&select=*');
+
+    if (!pesquisa || !perguntas.length) return;
+
+    wrap.innerHTML = `
+      <div class="pesquisa-card">
+        <div class="pesquisa-titulo">${pesquisa.titulo}</div>
+        ${pesquisa.descricao ? `<div class="pesquisa-desc">${pesquisa.descricao}</div>` : ''}
+      </div>
+      <form id="formPesquisa" onsubmit="return enviarRespostas(event,'${pesquisaId}')">
+        ${perguntas.map((p, i) => `
+          <div class="pergunta-wrap">
+            <div class="pergunta-texto">${i + 1}. ${p.texto}${p.obrigatoria ? '<span class="obrig">*</span>' : ''}</div>
+            ${renderInput(p, i)}
+          </div>
+        `).join('')}
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+          <button type="button" class="btn btn-outline" onclick="loadPesquisas()">Voltar</button>
+          <button type="submit" class="btn btn-primary">Enviar respostas</button>
+        </div>
+      </form>
+    `;
+
+    window._perguntas = perguntas;
+  } catch (e) { toast('Erro ao abrir pesquisa', 'error'); }
+}
+
+function renderInput(p, idx) {
+  switch (p.tipo_resposta) {
+    case 'texto':
+      return `<textarea id="resp_${idx}" rows="2" placeholder="Sua resposta..."></textarea>`;
+    case 'numero':
+      return `<input id="resp_${idx}" type="number" step="any" placeholder="0">`;
+    case 'sim_nao':
+      return `<div class="opcao-row"><input type="radio" name="resp_${idx}" value="Sim" id="r${idx}_s"><label for="r${idx}_s">Sim</label></div>
+              <div class="opcao-row"><input type="radio" name="resp_${idx}" value="Nao" id="r${idx}_n"><label for="r${idx}_n">Nao</label></div>`;
+    case 'nota_1_10':
+      return `<div class="escala-row"><label>1</label><input type="range" id="resp_${idx}" min="1" max="10" value="5" oninput="document.getElementById('val_${idx}').textContent=this.value"><label>10</label><span class="escala-valor" id="val_${idx}">5</span></div>`;
+    case 'escala':
+      return `<div class="escala-row"><label>1</label><input type="range" id="resp_${idx}" min="1" max="5" value="3" oninput="document.getElementById('val_${idx}').textContent=this.value"><label>5</label><span class="escala-valor" id="val_${idx}">3</span></div>`;
+    case 'multipla_escolha':
+      return (p.opcoes || []).map((o, oi) => `
+        <div class="opcao-row"><input type="radio" name="resp_${idx}" value="${o}" id="r${idx}_${oi}"><label for="r${idx}_${oi}">${o}</label></div>
+      `).join('');
+    default:
+      return `<input id="resp_${idx}" type="text" placeholder="Resposta">`;
+  }
+}
+
+async function enviarRespostas(e, pesquisaId) {
+  e.preventDefault();
+  const perguntas = window._perguntas;
+  const respostas = [];
+
+  for (let i = 0; i < perguntas.length; i++) {
+    const p = perguntas[i];
+    let texto = null, numero = null;
+
+    if (['sim_nao', 'multipla_escolha'].includes(p.tipo_resposta)) {
+      const checked = document.querySelector(`input[name="resp_${i}"]:checked`);
+      texto = checked ? checked.value : null;
+    } else if (['nota_1_10', 'escala'].includes(p.tipo_resposta)) {
+      numero = parseFloat(document.getElementById('resp_' + i).value);
+    } else if (p.tipo_resposta === 'numero') {
+      numero = parseFloat(document.getElementById('resp_' + i).value) || null;
+    } else {
+      texto = document.getElementById('resp_' + i).value.trim() || null;
+    }
+
+    if (p.obrigatoria && !texto && numero === null) {
+      toast('Responda todas as perguntas obrigatorias', 'error');
+      return false;
+    }
+
+    respostas.push({
+      pesquisa_id: pesquisaId,
+      pergunta_id: p.id,
+      respondente_id: PERFIL.id,
+      cliente_id: getUserClienteId(),
+      resposta_texto: texto,
+      resposta_numero: numero
+    });
+  }
+
+  try {
+    await sb('/hub_pesquisa_respostas', 'POST', respostas);
+    toast('Respostas enviadas');
+    loadPesquisas();
+  } catch (e) { toast('Erro ao enviar: ' + e.message, 'error'); }
+  return false;
+}
+</script>
+</body>
+</html>

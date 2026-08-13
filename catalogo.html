@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Catalogo — Boxer Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
+.topbar{background:linear-gradient(135deg,#1d327b,#162666);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #25bbee}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar h1{color:#fff;font-size:18px;font-weight:700}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.user-badge{color:#93b4d4;font-size:13px}.user-badge strong{color:#fff}
+.logout-btn{color:#93b4d4;font-size:13px;padding:6px 12px;border:1px solid rgba(255,255,255,.2);border-radius:6px;cursor:pointer}
+.logout-btn:hover{background:rgba(255,255,255,.1);color:#fff}
+.notif-badge{background:#e30613;color:#fff;font-size:10px;padding:2px 6px;border-radius:10px;cursor:pointer}
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-family:Outfit;font-size:13px;font-weight:500;z-index:2000;animation:slideIn .3s;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.toast-success{background:#16a34a}.toast-error{background:#dc2626}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+
+/* === CATALOGO === */
+.page-wrap{max-width:1400px;margin:0 auto;padding:20px 24px}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.page-title{font-size:18px;font-weight:700;color:#1d327b}
+.search-bar{display:flex;gap:12px;align-items:center}
+.search-bar input{padding:8px 14px;border:1px solid #c3cfe2;border-radius:6px;font-family:Outfit;font-size:13px;width:260px;outline:none}
+.search-bar input:focus{border-color:#25bbee}
+.search-bar select{padding:8px 12px;border:1px solid #c3cfe2;border-radius:6px;font-family:Outfit;font-size:13px;outline:none}
+.produto-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.produto-card{background:#fff;border:1px solid #d0d8e8;border-radius:10px;overflow:hidden;cursor:pointer;transition:box-shadow .2s}
+.produto-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08)}
+.produto-img{height:180px;background:#f7fafc;display:flex;align-items:center;justify-content:center;color:#a0aec0;font-size:13px}
+.produto-img img{width:100%;height:100%;object-fit:contain}
+.produto-info{padding:14px}
+.produto-sku{font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px}
+.produto-nome{font-size:14px;font-weight:600;margin:4px 0 8px;color:#1a202c}
+.produto-preco{font-size:16px;font-weight:700;color:#1d327b}
+.produto-estoque{font-size:11px;margin-top:6px}
+.estoque-disponivel{color:#16a34a}
+.estoque-baixo{color:#e97316}
+.estoque-sem{color:#dc2626}
+.promo-tag{display:inline-block;background:#e30613;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;margin-left:6px}
+.empty-state{text-align:center;padding:60px 20px;color:#718096}
+.empty-state h3{font-size:16px;margin-bottom:8px;color:#4a5568}
+</style>
+</head>
+<body>
+
+<div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<div class="page-wrap">
+  <div class="page-header">
+    <h2 class="page-title">Catalogo de Produtos</h2>
+    <div class="search-bar">
+      <select id="filtroCategoria" onchange="loadProdutos()">
+        <option value="">Todas as categorias</option>
+      </select>
+      <input id="buscaProduto" type="text" placeholder="Buscar produto..." oninput="debounceBusca()">
+    </div>
+  </div>
+  <div class="produto-grid" id="produtoGrid">
+    <div class="empty-state"><h3>Carregando catalogo...</h3></div>
+  </div>
+</div>
+
+<script src="hub.js"></script>
+<script>
+if (!requireAuth()) throw 'auth';
+
+(async () => {
+  await loadPerfil();
+  renderTopbar('Catalogo');
+  await loadCategorias();
+  await loadProdutos();
+})();
+
+async function loadCategorias() {
+  try {
+    const cats = await sb('/hub_categorias?ativo=eq.true&order=ordem.asc,nome.asc&select=id,nome,slug');
+    const sel = document.getElementById('filtroCategoria');
+    cats.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nome;
+      sel.appendChild(opt);
+    });
+  } catch {}
+}
+
+async function loadProdutos() {
+  const grid = document.getElementById('produtoGrid');
+  const cat = document.getElementById('filtroCategoria').value;
+  const busca = document.getElementById('buscaProduto').value.trim();
+
+  let url = '/hub_v_catalogo?select=*&order=ordem_exibicao.asc,nome.asc';
+  if (cat) url += '&categoria_id=eq.' + cat;
+  if (busca) url += '&nome=ilike.*' + encodeURIComponent(busca) + '*';
+
+  try {
+    const prods = await sb(url);
+    if (!prods.length) {
+      grid.innerHTML = '<div class="empty-state"><h3>Nenhum produto encontrado</h3><p>Tente outra busca ou categoria.</p></div>';
+      return;
+    }
+    grid.innerHTML = prods.map(p => `
+      <div class="produto-card" onclick="openPDP('${p.produto_id}')">
+        <div class="produto-img">
+          ${p.foto_paths ? `<img src="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${p.foto_paths.split(',')[0]}" alt="${p.nome}">` : 'Sem foto'}
+        </div>
+        <div class="produto-info">
+          <div class="produto-sku">${p.sku}</div>
+          <div class="produto-nome">${p.nome}</div>
+          <div class="produto-estoque ${p.status_estoque === 'disponivel' ? 'estoque-disponivel' : p.status_estoque === 'estoque_baixo' ? 'estoque-baixo' : 'estoque-sem'}">
+            ${p.status_estoque === 'disponivel' ? p.estoque_disponivel + ' em estoque' : p.status_estoque === 'estoque_baixo' ? 'Estoque baixo: ' + p.estoque_disponivel : p.backorder_disponivel ? 'Sob encomenda' : 'Indisponivel'}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    grid.innerHTML = '<div class="empty-state"><h3>Erro ao carregar catalogo</h3><p>' + e.message + '</p></div>';
+  }
+}
+
+const debounceBusca = debounce(() => loadProdutos(), 400);
+
+async function openPDP(produtoId) {
+  try {
+    const [prod] = await sb('/hub_v_catalogo?produto_id=eq.' + produtoId);
+    if (!prod) return;
+
+    const anexos = await sb('/hub_produto_anexos?produto_id=eq.' + produtoId + '&order=tipo.asc,ordem.asc&select=*');
+    const fotos = anexos.filter(a => a.tipo === 'foto');
+    const docs = anexos.filter(a => a.tipo !== 'foto');
+
+    let precoHtml = '';
+    if (getUserTipo() === 'cliente' || getUserTipo() === 'representante') {
+      try {
+        const clienteId = getUserTipo() === 'cliente' ? getUserClienteId() : null;
+        if (clienteId) {
+          const preco = await sbRpc('hub_fn_calcular_preco', { p_cliente_id: clienteId, p_produto_id: produtoId, p_quantidade: 1 });
+          if (preco.ok) {
+            precoHtml = `<div style="margin:16px 0;padding:12px;background:#f0f4f8;border-radius:8px">
+              <div style="font-size:12px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Seu preco</div>
+              <div style="font-size:22px;font-weight:700;color:#1d327b">${fmtMoeda(preco.preco_final)}${preco.em_promocao ? '<span class="promo-tag">PROMO</span>' : ''}</div>
+              ${preco.ipi > 0 ? '<div style="font-size:11px;color:#718096">IPI: ' + preco.ipi + '%</div>' : ''}
+            </div>`;
+          }
+        }
+      } catch {}
+    }
+
+    openModal(`
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+        <div>
+          <div style="font-size:12px;color:#718096;text-transform:uppercase;letter-spacing:.5px">${prod.sku}</div>
+          <h3 style="font-size:20px;color:#1d327b;margin:4px 0">${prod.nome}</h3>
+          <div style="font-size:13px;color:#718096">${prod.categoria_nome || 'Sem categoria'}</div>
+        </div>
+        <span style="cursor:pointer;font-size:20px;color:#718096" onclick="closeModal()">&times;</span>
+      </div>
+      ${fotos.length ? `<div style="height:240px;background:#f7fafc;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;overflow:hidden">
+        <img src="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${fotos[0].storage_path}" style="max-width:100%;max-height:100%;object-fit:contain">
+      </div>` : ''}
+      ${precoHtml}
+      ${prod.descricao ? `<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Descricao</div><div style="font-size:13px;color:#4a5568;line-height:1.5">${prod.descricao}</div></div>` : ''}
+      ${prod.o_que_acompanha?.length ? `<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">O que acompanha</div><ul style="font-size:13px;color:#4a5568;padding-left:18px">${prod.o_que_acompanha.map(i => '<li>' + i + '</li>').join('')}</ul></div>` : ''}
+      ${docs.length ? `<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Documentos</div>${docs.map(d => `<a href="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${d.storage_path}" target="_blank" style="display:block;font-size:13px;color:#1d327b;text-decoration:none;padding:6px 0;border-bottom:1px solid #e2e8f0">${d.nome || d.tipo}</a>`).join('')}</div>` : ''}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+        <button class="btn btn-outline" onclick="closeModal()" style="padding:8px 16px;border-radius:8px;border:1px solid #c3cfe2;background:#fff;color:#4a5568;font-family:Outfit;font-size:13px;cursor:pointer">Fechar</button>
+        ${getUserTipo() === 'cliente' ? `<button class="btn btn-primary" onclick="addToCart('${produtoId}')" style="padding:8px 16px;border-radius:8px;border:1px solid #1d327b;background:#1d327b;color:#fff;font-family:Outfit;font-size:13px;cursor:pointer">Adicionar ao pedido</button>` : ''}
+      </div>
+    `);
+  } catch (e) {
+    toast('Erro ao abrir produto', 'error');
+  }
+}
+
+function addToCart(produtoId) {
+  closeModal();
+  window.location.href = 'pedidos.html?add=' + produtoId;
+}
+</script>
+</body>
+</html>

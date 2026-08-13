@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Pedidos — Boxer Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
+.topbar{background:linear-gradient(135deg,#1d327b,#162666);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #25bbee}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.topbar h1{color:#fff;font-size:18px;font-weight:700}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.user-badge{color:#93b4d4;font-size:13px}.user-badge strong{color:#fff}
+.logout-btn{color:#93b4d4;font-size:13px;padding:6px 12px;border:1px solid rgba(255,255,255,.2);border-radius:6px;cursor:pointer}
+.logout-btn:hover{background:rgba(255,255,255,.1);color:#fff}
+.notif-badge{background:#e30613;color:#fff;font-size:10px;padding:2px 6px;border-radius:10px;cursor:pointer}
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-family:Outfit;font-size:13px;font-weight:500;z-index:2000;animation:slideIn .3s;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.toast-success{background:#16a34a}.toast-error{background:#dc2626}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+
+.tabs{display:flex;gap:4px;padding:16px 24px 0;max-width:1400px;margin:0 auto}
+.tab{padding:10px 20px;border-radius:8px 8px 0 0;border:1px solid #d0d8e8;border-bottom:none;background:#fff;color:#4a5568;cursor:pointer;font-family:Outfit;font-size:14px;font-weight:500}
+.tab:hover{color:#1d327b}
+.tab.active{background:#1d327b;color:#fff;border-color:#1d327b}
+.panel{max-width:1400px;margin:0 auto;padding:0 24px 24px}
+.panel-content{background:#fff;border:1px solid #d0d8e8;border-radius:0 8px 8px 8px;padding:20px}
+.hidden{display:none!important}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{padding:8px 12px;text-align:left;color:#718096;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e2e8f0;background:#f7fafc}
+tbody td{padding:8px 12px;border-bottom:1px solid #e2e8f0;vertical-align:middle}
+tbody tr:hover{background:#f0f7ff}
+
+.btn{padding:8px 16px;border-radius:8px;border:1px solid;font-family:Outfit;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.btn-primary{background:#1d327b;color:#fff;border-color:#1d327b}.btn-primary:hover{background:#162666}
+.btn-danger{background:#fff;color:#e30613;border-color:#fecaca}.btn-danger:hover{background:#fee2e2}
+.btn-outline{background:#fff;color:#4a5568;border-color:#c3cfe2}.btn-outline:hover{border-color:#25bbee;color:#1d327b}
+.btn-sm{padding:4px 10px;font-size:12px}
+
+.status-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.status-rascunho{background:#e2e8f0;color:#4a5568}
+.status-submetido{background:#dbeafe;color:#1e40af}
+.status-em_analise{background:#fef3c7;color:#92400e}
+.status-aprovado{background:#d1fae5;color:#065f46}
+.status-rejeitado{background:#fee2e2;color:#991b1b}
+.status-em_separacao{background:#e0e7ff;color:#3730a3}
+.status-faturado{background:#cffafe;color:#155e75}
+.status-enviado{background:#ddd6fe;color:#5b21b6}
+.status-entregue{background:#d1fae5;color:#065f46}
+.status-cancelado{background:#f3f4f6;color:#6b7280}
+
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.page-title{font-size:16px;font-weight:600;color:#1d327b}
+.empty-state{text-align:center;padding:40px 20px;color:#718096}
+</style>
+</head>
+<body>
+
+<div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('lista',this)">Meus Pedidos</div>
+  <div class="tab" onclick="showTab('novo',this)">Novo Pedido</div>
+</div>
+<div class="panel">
+  <div class="panel-content" id="tab-lista">
+    <div class="page-header">
+      <h2 class="page-title">Historico de Pedidos</h2>
+      <select id="filtroStatus" onchange="loadPedidos()" style="padding:6px 10px;border:1px solid #c3cfe2;border-radius:6px;font-family:Outfit;font-size:12px">
+        <option value="">Todos os status</option>
+        <option value="rascunho">Rascunho</option>
+        <option value="submetido">Submetido</option>
+        <option value="em_analise">Em analise</option>
+        <option value="aprovado">Aprovado</option>
+        <option value="faturado">Faturado</option>
+        <option value="enviado">Enviado</option>
+        <option value="entregue">Entregue</option>
+      </select>
+    </div>
+    <div id="pedidosList"></div>
+  </div>
+  <div class="panel-content hidden" id="tab-novo">
+    <div class="page-header">
+      <h2 class="page-title">Novo Pedido</h2>
+    </div>
+    <div id="carrinhoWrap">
+      <div class="empty-state">
+        <h3>Carrinho vazio</h3>
+        <p>Adicione produtos pelo <a href="catalogo.html" style="color:#1d327b">catalogo</a>.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="hub.js"></script>
+<script>
+if (!requireAuth()) throw 'auth';
+
+function showTab(n, el) {
+  document.querySelectorAll('.panel-content').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + n).classList.remove('hidden');
+  el.classList.add('active');
+}
+
+(async () => {
+  await loadPerfil();
+  renderTopbar('Pedidos');
+  await loadPedidos();
+})();
+
+async function loadPedidos() {
+  const wrap = document.getElementById('pedidosList');
+  const status = document.getElementById('filtroStatus').value;
+
+  let url = '/hub_pedidos?select=id,numero,status,origem,valor_total,criado_em,hub_clientes(razao_social)&order=criado_em.desc&ativo=eq.true';
+  if (status) url += '&status=eq.' + status;
+
+  try {
+    const pedidos = await sb(url);
+    if (!pedidos.length) {
+      wrap.innerHTML = '<div class="empty-state"><h3>Nenhum pedido encontrado</h3></div>';
+      return;
+    }
+    wrap.innerHTML = `<div style="overflow-x:auto"><table>
+      <thead><tr><th>Numero</th><th>Cliente</th><th>Status</th><th>Valor</th><th>Data</th><th></th></tr></thead>
+      <tbody>${pedidos.map(p => `<tr>
+        <td><strong>${p.numero || 'Rascunho'}</strong></td>
+        <td>${p.hub_clientes?.razao_social || '—'}</td>
+        <td><span class="status-badge status-${p.status}">${p.status.replace('_', ' ')}</span></td>
+        <td>${fmtMoeda(p.valor_total)}</td>
+        <td>${fmtData(p.criado_em)}</td>
+        <td><button class="btn btn-outline btn-sm" onclick="openPedido('${p.id}')">Ver</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty-state"><h3>Erro ao carregar pedidos</h3><p>' + e.message + '</p></div>';
+  }
+}
+
+async function openPedido(id) {
+  try {
+    const [pedido] = await sb('/hub_pedidos?id=eq.' + id + '&select=*,hub_clientes(razao_social,cnpj),hub_enderecos(logradouro,numero,cidade,uf)');
+    const itens = await sb('/hub_pedido_itens?pedido_id=eq.' + id + '&select=*,hub_produtos(nome,sku)&order=criado_em.asc');
+    if (!pedido) return;
+
+    openModal(`
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+        <div>
+          <h3 style="font-size:18px;color:#1d327b">${pedido.numero || 'Rascunho'}</h3>
+          <div style="font-size:13px;color:#718096">${pedido.hub_clientes?.razao_social || ''}</div>
+        </div>
+        <span style="cursor:pointer;font-size:20px;color:#718096" onclick="closeModal()">&times;</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+        <div style="padding:10px;background:#f7fafc;border-radius:8px">
+          <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Status</div>
+          <span class="status-badge status-${pedido.status}">${pedido.status.replace('_', ' ')}</span>
+        </div>
+        <div style="padding:10px;background:#f7fafc;border-radius:8px">
+          <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Valor Total</div>
+          <div style="font-size:16px;font-weight:700;color:#1d327b">${fmtMoeda(pedido.valor_total)}</div>
+        </div>
+        <div style="padding:10px;background:#f7fafc;border-radius:8px">
+          <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Data</div>
+          <div style="font-size:13px;font-weight:500">${fmtData(pedido.criado_em)}</div>
+        </div>
+      </div>
+      ${pedido.ordem_compra ? `<div style="font-size:13px;color:#4a5568;margin-bottom:12px"><strong>OC:</strong> ${pedido.ordem_compra}</div>` : ''}
+      ${itens.length ? `<div style="overflow-x:auto"><table>
+        <thead><tr><th>SKU</th><th>Produto</th><th>Qtd</th><th>Preco Unit.</th><th>Subtotal</th></tr></thead>
+        <tbody>${itens.map(i => `<tr>
+          <td>${i.sku || i.hub_produtos?.sku || ''}</td>
+          <td>${i.nome_produto || i.hub_produtos?.nome || ''}</td>
+          <td>${i.quantidade}</td>
+          <td>${fmtMoeda(i.preco_unitario)}</td>
+          <td>${fmtMoeda(i.subtotal_item)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>` : '<p style="color:#718096;font-size:13px">Nenhum item</p>'}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+        <button class="btn btn-outline" onclick="closeModal()">Fechar</button>
+      </div>
+    `);
+  } catch (e) {
+    toast('Erro ao abrir pedido', 'error');
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Boxer Hub — MVP</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bx-navy:#1d327b;--bx-navy-d:#162666;--bx-cyan:#25bbee;--bx-red:#e30613;
+--bx-bg:#f0f4f8;--bx-white:#fff;--bx-text:#1a202c;--bx-text-s:#718096;--bx-text-m:#a0aec0;
+--bx-border:#d0d8e8;--bx-border-l:#e2e8f0;--bx-green:#16a34a;--bx-orange:#e97316;--bx-purple:#7c3aed;
+}
+body{font-family:'Outfit',sans-serif;background:var(--bx-bg);color:var(--bx-text);min-height:100vh}
+
+/* LOGIN */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1d327b 0%,#0f1d4a 100%)}
+.login-card{background:#fff;border-radius:10px;padding:48px 40px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.25)}
+.login-logo{text-align:center;margin-bottom:8px}
+.login-card h1{font-size:22px;color:var(--bx-navy);font-weight:700;text-align:center;margin:12px 0 4px}
+.login-card .subtitle{font-size:13px;color:var(--bx-text-s);text-align:center;margin-bottom:28px}
+.field{margin-bottom:18px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--bx-text-s);margin-bottom:6px;text-transform:uppercase;letter-spacing:.8px}
+.field input{width:100%;padding:11px 14px;border:1.5px solid var(--bx-border);border-radius:8px;font-size:14px;font-family:'Outfit',sans-serif;outline:none;transition:border-color .2s}
+.field input:focus{border-color:var(--bx-cyan);box-shadow:0 0 0 3px rgba(37,187,238,.12)}
+.btn-login{width:100%;padding:13px;background:var(--bx-navy);color:#fff;border:none;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:background .2s}
+.btn-login:hover{background:var(--bx-navy-d)}
+.err-msg{background:#fee2e2;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;border:1px solid #fecaca;display:none}
+.login-hint{text-align:center;margin-top:16px;font-size:12px;color:var(--bx-text-m)}
+
+/* APP SHELL */
+#appShell{display:none;min-height:100vh}
+.topbar{background:linear-gradient(135deg,#1d327b,#162666);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:56px;border-bottom:3px solid var(--bx-cyan);position:sticky;top:0;z-index:100}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.topbar h1{color:#fff;font-size:17px;font-weight:700;letter-spacing:-.2px}
+.topbar-nav{display:flex;gap:2px;margin-left:32px}
+.topbar-nav a{color:rgba(255,255,255,.65);font-size:13px;font-weight:500;padding:8px 14px;border-radius:6px;cursor:pointer;text-decoration:none;transition:all .15s;position:relative}
+.topbar-nav a:hover{color:#fff;background:rgba(255,255,255,.08)}
+.topbar-nav a.active{color:#fff;background:rgba(255,255,255,.12)}
+.topbar-right{display:flex;align-items:center;gap:14px}
+.cart-btn{position:relative;color:rgba(255,255,255,.75);cursor:pointer;padding:6px;border-radius:6px;transition:all .15s;background:none;border:none;font-size:18px}
+.cart-btn:hover{color:#fff;background:rgba(255,255,255,.1)}
+.cart-badge{position:absolute;top:-2px;right:-4px;background:var(--bx-red);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.cart-badge:empty{display:none}
+.user-pill{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.75);font-size:13px}
+.user-pill strong{color:#fff}
+.user-avatar{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;color:#fff}
+.btn-logout{color:rgba(255,255,255,.5);font-size:12px;padding:5px 10px;border:1px solid rgba(255,255,255,.15);border-radius:6px;cursor:pointer;background:none;font-family:'Outfit',sans-serif;transition:all .15s}
+.btn-logout:hover{background:rgba(255,255,255,.1);color:#fff}
+
+/* MAIN CONTENT */
+.main{max-width:1320px;margin:0 auto;padding:24px}
+.page{display:none}
+.page.active{display:block}
+
+/* DASHBOARD */
+.welcome-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.welcome-bar h2{font-size:20px;font-weight:700;color:var(--bx-navy)}
+.welcome-bar .date{font-size:13px;color:var(--bx-text-s)}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.kpi-card{background:#fff;border-radius:8px;padding:20px;border:1px solid var(--bx-border-l);position:relative;overflow:hidden;transition:all .15s}
+.kpi-card.clickable{cursor:pointer}
+.kpi-card.clickable:hover{box-shadow:0 4px 16px rgba(29,50,123,.1);border-color:var(--bx-cyan)}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kpi-card:nth-child(1)::before{background:var(--bx-navy)}
+.kpi-card:nth-child(2)::before{background:var(--bx-cyan)}
+.kpi-card:nth-child(3)::before{background:var(--bx-orange)}
+.kpi-card:nth-child(4)::before{background:var(--bx-green)}
+.kpi-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--bx-text-s);margin-bottom:8px}
+.kpi-value{font-size:26px;font-weight:700;color:var(--bx-text);font-variant-numeric:tabular-nums}
+.kpi-sub{font-size:12px;color:var(--bx-text-m);margin-top:4px}
+.kpi-link{font-size:11px;color:var(--bx-cyan);margin-top:6px;font-weight:500}
+.dash-grid{display:grid;grid-template-columns:2fr 1fr;gap:20px}
+.card{background:#fff;border-radius:8px;border:1px solid var(--bx-border-l);overflow:hidden}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--bx-border-l);display:flex;justify-content:space-between;align-items:center}
+.card-header h3{font-size:15px;font-weight:600;color:var(--bx-navy)}
+.card-body{padding:20px}
+.promo-banner{background:#fff;border:1px solid var(--bx-border-l);border-left:4px solid var(--bx-red);border-radius:8px;padding:16px 20px;color:var(--bx-text);margin-bottom:24px;display:flex;justify-content:space-between;align-items:center}
+.promo-banner h3{font-size:14px;font-weight:600;margin-bottom:2px;color:var(--bx-navy)}
+.promo-banner p{font-size:12px;color:var(--bx-text-s)}
+.promo-banner .promo-cta{background:var(--bx-navy);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-weight:600;font-size:12px;cursor:pointer;font-family:'Outfit',sans-serif}
+.promo-banner .promo-cta:hover{background:var(--bx-navy-d)}
+.order-mini{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--bx-border-l)}
+.order-mini:last-child{border-bottom:none}
+.order-mini .om-id{font-size:13px;font-weight:600;color:var(--bx-navy)}
+.order-mini .om-date{font-size:12px;color:var(--bx-text-m)}
+.order-mini .om-val{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.status-badge{display:inline-flex;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.2px}
+.status-analise{background:#dbeafe;color:#1d4ed8}
+.status-aprovado{background:#d1fae5;color:#065f46}
+.status-faturado{background:#ede9fe;color:#5b21b6}
+.status-transito{background:#fff7ed;color:#9a3412}
+.status-entregue{background:#d1fae5;color:#065f46}
+.shortcut-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.shortcut-btn{display:flex;align-items:center;gap:10px;padding:14px;border-radius:6px;border:1.5px solid var(--bx-border);background:#fff;cursor:pointer;transition:all .15s;font-family:'Outfit',sans-serif}
+.shortcut-btn:hover{border-color:var(--bx-cyan);background:#f0f9ff}
+.shortcut-btn .sc-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.shortcut-btn .sc-label{font-size:13px;font-weight:500;color:var(--bx-text)}
+
+/* CATALOGO */
+.catalog-header{margin-bottom:20px}
+.catalog-header h2{font-size:20px;font-weight:700;color:var(--bx-navy);margin-bottom:4px}
+.catalog-header p{font-size:14px;color:var(--bx-text-s)}
+.catalog-toolbar{display:flex;gap:12px;margin-bottom:20px;align-items:center;flex-wrap:wrap}
+.search-box{flex:1;min-width:240px;position:relative}
+.search-box input{width:100%;padding:10px 14px 10px 38px;border:1.5px solid var(--bx-border);border-radius:8px;font-size:14px;font-family:'Outfit',sans-serif;outline:none}
+.search-box input:focus{border-color:var(--bx-cyan)}
+.search-box .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--bx-text-m);font-size:14px}
+.filter-chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{padding:7px 14px;border-radius:20px;border:1.5px solid var(--bx-border);background:#fff;font-size:12px;font-weight:500;cursor:pointer;font-family:'Outfit',sans-serif;transition:all .15s;color:var(--bx-text-s)}
+.chip:hover{border-color:var(--bx-cyan);color:var(--bx-text)}
+.chip.active{background:var(--bx-navy);color:#fff;border-color:var(--bx-navy)}
+.catalog-info{font-size:13px;color:var(--bx-text-s);margin-bottom:16px}
+.product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.product-card{background:#fff;border-radius:8px;border:1px solid var(--bx-border-l);overflow:hidden;cursor:pointer;transition:all .2s;position:relative}
+.product-card:hover{box-shadow:0 8px 24px rgba(29,50,123,.1);transform:translateY(-2px);border-color:var(--bx-cyan)}
+.product-img{height:160px;display:flex;align-items:center;justify-content:center;background:#f7fafc;position:relative}
+.product-img svg{width:64px;height:64px}
+.badge-promo{position:absolute;top:10px;left:10px;background:var(--bx-red);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px}
+.badge-backorder{position:absolute;top:10px;left:10px;background:var(--bx-orange);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px}
+.badge-low{position:absolute;top:10px;right:10px;background:#fff7ed;color:#9a3412;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px}
+.product-info{padding:14px 16px}
+.product-sku{font-size:11px;color:var(--bx-text-m);font-weight:500;letter-spacing:.5px}
+.product-name{font-size:14px;font-weight:600;color:var(--bx-text);margin:4px 0 8px;line-height:1.3}
+.product-price-row{display:flex;justify-content:space-between;align-items:flex-end}
+.product-price{font-size:18px;font-weight:700;color:var(--bx-navy)}
+.product-price-old{font-size:12px;color:var(--bx-text-m);text-decoration:line-through;margin-right:6px}
+.product-unit{font-size:11px;color:var(--bx-text-m);font-weight:400}
+.product-stock{font-size:11px;margin-top:6px;display:flex;align-items:center;gap:4px}
+.stock-dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.stock-ok .stock-dot{background:var(--bx-green)}
+.stock-ok{color:var(--bx-green)}
+.stock-low .stock-dot{background:var(--bx-orange)}
+.stock-low{color:var(--bx-orange)}
+.stock-out .stock-dot{background:var(--bx-red)}
+.stock-out{color:var(--bx-red)}
+.product-add{width:100%;padding:10px;background:var(--bx-navy);color:#fff;border:none;border-radius:0 0 12px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:background .15s;display:none}
+.product-card:hover .product-add{display:block}
+.product-add:hover{background:var(--bx-navy-d)}
+
+/* PDP */
+.pdp-back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--bx-text-s);cursor:pointer;margin-bottom:20px;padding:6px 0}
+.pdp-back:hover{color:var(--bx-navy)}
+.pdp-layout{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.pdp-gallery{background:#fff;border-radius:8px;border:1px solid var(--bx-border-l);height:400px;display:flex;align-items:center;justify-content:center}
+.pdp-gallery svg{width:140px;height:140px;opacity:.7}
+.pdp-details{display:flex;flex-direction:column;gap:16px}
+.pdp-sku{font-size:12px;color:var(--bx-text-m);font-weight:500;letter-spacing:.5px}
+.pdp-title{font-size:22px;font-weight:700;color:var(--bx-text);line-height:1.3}
+.pdp-desc-box{background:#f7fafc;border-radius:6px;padding:14px 18px;border-left:3px solid var(--bx-cyan)}
+.pdp-desc-box p{font-size:13px;color:var(--bx-text-s);line-height:1.6;margin-bottom:6px}
+.pdp-desc-box p:last-child{margin-bottom:0}
+.pdp-price-box{background:#f0f4ff;border-radius:6px;padding:16px 20px}
+.pdp-price-list{font-size:13px;color:var(--bx-text-s);margin-bottom:4px}
+.pdp-price-list span{text-decoration:line-through}
+.pdp-price-final{font-size:28px;font-weight:700;color:var(--bx-navy)}
+.pdp-price-final small{font-size:14px;font-weight:400;color:var(--bx-text-s)}
+.pdp-cie-tag{display:inline-flex;align-items:center;gap:4px;background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:600;padding:4px 10px;border-radius:4px;margin-top:6px}
+.pdp-stock{font-size:13px;display:flex;align-items:center;gap:6px}
+.pdp-actions{display:flex;gap:12px;align-items:center}
+.qty-control{display:flex;align-items:center;border:1.5px solid var(--bx-border);border-radius:8px;overflow:hidden}
+.qty-control button{width:36px;height:40px;border:none;background:#f7fafc;cursor:pointer;font-size:16px;font-family:'Outfit',sans-serif;color:var(--bx-text)}
+.qty-control button:hover{background:#e2e8f0}
+.qty-control input{width:50px;height:40px;border:none;text-align:center;font-size:14px;font-family:'Outfit',sans-serif;font-weight:600;border-left:1.5px solid var(--bx-border);border-right:1.5px solid var(--bx-border)}
+.btn-add-cart{flex:1;padding:12px 24px;background:var(--bx-navy);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}
+.btn-add-cart:hover{background:var(--bx-navy-d)}
+.pdp-section{margin-top:24px}
+.pdp-section h3{font-size:15px;font-weight:600;color:var(--bx-navy);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--bx-border-l)}
+.specs-table{width:100%;font-size:13px}
+.specs-table tr:nth-child(odd){background:#f7fafc}
+.specs-table td{padding:8px 12px}
+.specs-table td:first-child{font-weight:500;color:var(--bx-text-s);width:40%}
+.accomp-list{list-style:none;display:flex;flex-direction:column;gap:6px}
+.accomp-list li{font-size:13px;padding:6px 0;padding-left:20px;position:relative}
+.accomp-list li::before{content:'✓';position:absolute;left:0;color:var(--bx-green);font-weight:700}
+.related-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:24px}
+.related-card{background:#fff;border:1px solid var(--bx-border-l);border-radius:8px;padding:12px;cursor:pointer;text-align:center;transition:all .15s}
+.related-card:hover{border-color:var(--bx-cyan)}
+.related-card .rc-name{font-size:12px;font-weight:500;margin-top:8px;color:var(--bx-text)}
+.related-card .rc-price{font-size:14px;font-weight:700;color:var(--bx-navy);margin-top:4px}
+
+/* CARRINHO */
+.cart-empty{text-align:center;padding:60px 20px;color:var(--bx-text-s)}
+.cart-empty h3{font-size:18px;margin-bottom:8px;color:var(--bx-text-m)}
+.cart-layout{display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start}
+.cart-items{background:#fff;border-radius:8px;border:1px solid var(--bx-border-l);overflow:hidden}
+.cart-item{display:grid;grid-template-columns:60px 1fr auto auto auto;gap:16px;align-items:center;padding:16px 20px;border-bottom:1px solid var(--bx-border-l)}
+.cart-item:last-child{border-bottom:none}
+.cart-item-img{width:60px;height:60px;background:#f7fafc;border-radius:8px;display:flex;align-items:center;justify-content:center}
+.cart-item-img svg{width:28px;height:28px}
+.ci-name{font-size:14px;font-weight:600}
+.ci-sku{font-size:11px;color:var(--bx-text-m)}
+.ci-backorder{font-size:11px;color:var(--bx-orange);display:flex;align-items:center;gap:4px;margin-top:2px}
+.ci-price{font-size:14px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;min-width:90px}
+.ci-subtotal{font-size:15px;font-weight:700;color:var(--bx-navy);text-align:right;font-variant-numeric:tabular-nums;min-width:100px}
+.ci-remove{background:none;border:none;color:var(--bx-text-m);cursor:pointer;font-size:16px;padding:4px}
+.ci-remove:hover{color:var(--bx-red)}
+.cart-summary{background:#fff;border-radius:8px;border:1px solid var(--bx-border-l);padding:24px;position:sticky;top:80px}
+.cart-summary h3{font-size:16px;font-weight:600;color:var(--bx-navy);margin-bottom:16px}
+.summary-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:13px}
+.summary-row.total{border-top:2px solid var(--bx-border-l);margin-top:8px;padding-top:14px;font-size:17px;font-weight:700;color:var(--bx-navy)}
+.summary-row .label{color:var(--bx-text-s)}
+.summary-row .val{font-weight:600;font-variant-numeric:tabular-nums}
+.cart-field{margin-top:16px}
+.cart-field label{display:block;font-size:11px;font-weight:600;color:var(--bx-text-s);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.cart-field .field-hint{font-size:11px;color:var(--bx-text-m);margin-top:4px;line-height:1.4}
+.cart-field select,.cart-field input{width:100%;padding:10px 12px;border:1.5px solid var(--bx-border);border-radius:8px;font-size:13px;font-family:'Outfit',sans-serif;outline:none}
+.cart-field select:focus,.cart-field input:focus{border-color:var(--bx-cyan)}
+.btn-checkout{width:100%;padding:14px;background:var(--bx-navy);color:#fff;border:none;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;margin-top:20px;transition:background .15s}
+.btn-checkout:hover{background:var(--bx-navy-d)}
+.btn-checkout:disabled{background:var(--bx-text-m);cursor:not-allowed}
+.cie-suggestion{background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:14px 16px;margin-top:16px}
+.cie-suggestion h4{font-size:12px;font-weight:600;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.cie-suggestion .sug-items{display:flex;gap:10px}
+.sug-card{flex:1;background:#fff;border:1px solid #bae6fd;border-radius:8px;padding:10px;text-align:center;cursor:pointer;transition:all .15s}
+.sug-card:hover{border-color:var(--bx-cyan);background:#e0f2fe}
+.sug-card .sug-name{font-size:11px;font-weight:500;margin-top:4px}
+.sug-card .sug-price{font-size:13px;font-weight:700;color:var(--bx-navy);margin-top:2px}
+
+/* PEDIDO CONFIRMADO */
+.confirm-wrap{text-align:center;padding:40px 20px}
+.confirm-icon{width:72px;height:72px;border-radius:50%;background:#d1fae5;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:32px}
+.confirm-wrap h2{font-size:22px;font-weight:700;color:var(--bx-navy);margin-bottom:8px}
+.confirm-wrap .conf-num{font-size:16px;color:var(--bx-text-s);margin-bottom:24px}
+.confirm-details{background:#fff;border-radius:8px;border:1px solid var(--bx-border-l);padding:24px;max-width:600px;margin:0 auto;text-align:left}
+.conf-row{display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid var(--bx-border-l)}
+.conf-row:last-child{border-bottom:none}
+.btn-orders{display:inline-flex;padding:12px 28px;background:var(--bx-navy);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;margin-top:24px}
+
+/* MEUS PEDIDOS */
+.orders-table{width:100%;border-collapse:collapse;font-size:13px}
+.orders-table thead th{padding:10px 14px;text-align:left;color:var(--bx-text-s);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--bx-border-l);background:#f7fafc}
+.orders-table tbody td{padding:12px 14px;border-bottom:1px solid var(--bx-border-l);vertical-align:middle}
+.orders-table tbody tr{cursor:pointer;transition:background .1s}
+.orders-table tbody tr:hover{background:#f0f7ff}
+.order-id-link{font-weight:600;color:var(--bx-navy)}
+.order-val{font-variant-numeric:tabular-nums;font-weight:600}
+
+/* DETALHE PEDIDO */
+.order-detail-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.order-detail-header h2{font-size:20px;font-weight:700;color:var(--bx-navy)}
+.timeline{display:flex;justify-content:space-between;margin:24px 0;padding:0 20px;position:relative}
+.timeline::before{content:'';position:absolute;top:14px;left:60px;right:60px;height:2px;background:var(--bx-border)}
+.timeline-step{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;flex:1}
+.timeline-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--bx-border);background:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;margin-bottom:8px}
+.timeline-dot.done{background:var(--bx-green);border-color:var(--bx-green);color:#fff}
+.timeline-dot.current{background:var(--bx-cyan);border-color:var(--bx-cyan);color:#fff}
+.timeline-label{font-size:11px;color:var(--bx-text-s);text-align:center}
+.timeline-date{font-size:10px;color:var(--bx-text-m);margin-top:2px}
+.od-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.od-info-table{width:100%;font-size:13px}
+.od-info-table td{padding:6px 0}
+.od-info-table td:first-child{color:var(--bx-text-s);font-weight:500;width:45%}
+
+/* CADASTRO */
+.cadastro-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.cadastro-section{margin-bottom:8px}
+.cadastro-section h4{font-size:13px;font-weight:600;color:var(--bx-navy);margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid var(--bx-border-l);text-transform:uppercase;letter-spacing:.5px}
+.cadastro-row{display:flex;justify-content:space-between;padding:7px 0;font-size:13px;border-bottom:1px solid var(--bx-border-l)}
+.cadastro-row:last-child{border-bottom:none}
+.cadastro-row .cr-label{color:var(--bx-text-s);font-weight:500;min-width:140px}
+.cadastro-row .cr-value{text-align:right;font-weight:500}
+.cadastro-tag{display:inline-flex;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:#e0f2fe;color:#0369a1}
+
+/* FATURAMENTO MODAL */
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:10px;padding:28px;width:100%;max-width:720px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal h3{font-size:18px;font-weight:700;color:var(--bx-navy);margin-bottom:4px}
+.modal-subtitle{font-size:13px;color:var(--bx-text-s);margin-bottom:20px}
+.modal-close{position:absolute;top:16px;right:20px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--bx-text-m);padding:4px}
+.modal-controls{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
+.modal-controls select{padding:8px 12px;border:1.5px solid var(--bx-border);border-radius:8px;font-size:13px;font-family:'Outfit',sans-serif;outline:none}
+.modal-controls select:focus{border-color:var(--bx-cyan)}
+.toggle-group{display:flex;border:1.5px solid var(--bx-border);border-radius:8px;overflow:hidden}
+.toggle-btn{padding:7px 14px;font-size:12px;font-weight:500;cursor:pointer;background:#fff;border:none;font-family:'Outfit',sans-serif;color:var(--bx-text-s);transition:all .15s}
+.toggle-btn.active{background:var(--bx-navy);color:#fff}
+.fat-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:16px}
+.fat-table thead th{padding:8px 12px;text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--bx-text-s);border-bottom:2px solid var(--bx-border-l);background:#f7fafc}
+.fat-table thead th:not(:first-child){text-align:right}
+.fat-table tbody td{padding:10px 12px;border-bottom:1px solid var(--bx-border-l);font-variant-numeric:tabular-nums}
+.fat-table tbody td:not(:first-child){text-align:right}
+.fat-table tbody tr:hover{background:#f0f7ff}
+.fat-table tfoot td{padding:10px 12px;font-weight:700;border-top:2px solid var(--bx-border-l);color:var(--bx-navy)}
+.fat-table tfoot td:not(:first-child){text-align:right}
+.bar-cell{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.bar-bg{height:14px;border-radius:3px;background:var(--bx-navy);opacity:.15;position:relative;min-width:4px}
+.bar-fill{position:absolute;top:0;left:0;height:100%;border-radius:3px;background:var(--bx-navy)}
+.var-positive{color:var(--bx-green);font-weight:600}
+.var-negative{color:var(--bx-red);font-weight:600}
+
+/* TOAST */
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:6px;color:#fff;font-size:13px;font-weight:500;z-index:2000;animation:slideIn .3s;box-shadow:0 8px 24px rgba(0,0,0,.15);display:flex;align-items:center;gap:8px}
+.toast-success{background:#16a34a}
+.toast-error{background:#dc2626}
+.toast-info{background:var(--bx-navy)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* RESPONSIVE */
+@media(max-width:1024px){
+.kpi-grid{grid-template-columns:repeat(2,1fr)}
+.dash-grid{grid-template-columns:1fr}
+.pdp-layout{grid-template-columns:1fr}
+.cart-layout{grid-template-columns:1fr}
+.cart-item{grid-template-columns:50px 1fr auto auto}
+.related-grid{grid-template-columns:repeat(2,1fr)}
+.cadastro-grid{grid-template-columns:1fr}
+.od-grid{grid-template-columns:1fr}
+}
+/* REGISTRATION */
+#registerPage{display:none;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(135deg,#1d327b 0%,#0f1d4a 100%)}
+.reg-card{background:#fff;border-radius:10px;padding:36px 40px;width:100%;max-width:560px;box-shadow:0 24px 64px rgba(0,0,0,.25)}
+.reg-label{display:block;font-size:11px;font-weight:600;color:var(--bx-text-s);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.reg-input{width:100%;padding:9px 12px;border:1.5px solid var(--bx-border);border-radius:6px;font-size:13px;font-family:'Outfit',sans-serif;outline:none;transition:border-color .2s}
+.reg-input:focus{border-color:var(--bx-cyan);box-shadow:0 0 0 3px rgba(37,187,238,.12)}
+textarea.reg-input{resize:vertical}
+.form-row{margin-bottom:14px}
+
+/* CREDIT ALERT */
+.credit-alert{display:flex;align-items:flex-start;gap:12px;padding:14px 18px;border-radius:8px;border:1px solid #fecaca;background:#fef2f2;margin-bottom:16px}
+.credit-alert-icon{width:20px;height:20px;flex-shrink:0;color:#dc2626}
+.credit-alert-text{font-size:13px;color:#991b1b;flex:1}
+.credit-alert-text strong{font-weight:600}
+.credit-alert-actions{display:flex;gap:8px;margin-top:8px}
+.credit-alert-actions button{padding:5px 12px;font-size:12px;font-weight:600;font-family:Outfit;border-radius:6px;cursor:pointer;border:none}
+
+@media(max-width:640px){
+.kpi-grid{grid-template-columns:1fr}
+.product-grid{grid-template-columns:1fr 1fr}
+.topbar-nav{display:none}
+.catalog-toolbar{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== LOGIN ==================== -->
+<div id="loginPage" class="login-wrap">
+<div class="login-card">
+  <div class="login-logo">
+    <svg width="48" height="48" viewBox="0 0 200 200"><rect x="10" y="10" width="180" height="180" rx="30" fill="#e30613"/><polygon points="100,38 108,80 145,55 118,88 158,92 120,105 148,138 108,118 100,162 92,118 52,138 80,105 42,92 82,88 55,55 92,80" fill="#fff"/></svg>
+  </div>
+  <h1>Boxer Hub</h1>
+  <p class="subtitle">Portal do Cliente</p>
+  <div id="loginErr" class="err-msg"></div>
+  <div class="field"><label>Email</label><input id="loginEmail" type="email" placeholder="seu@email.com"></div>
+  <div class="field"><label>Senha</label><input id="loginPass" type="password" placeholder="••••••••"></div>
+  <button class="btn-login" onclick="doLogin()">Entrar</button>
+  <p class="login-hint">MVP — use qualquer email e senha</p>
+  <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--bx-border-l)">
+    <p style="font-size:13px;color:var(--bx-text-s);margin-bottom:6px">Ainda não é cliente?</p>
+    <button onclick="showRegister()" style="background:none;border:1px solid var(--bx-navy);color:var(--bx-navy);padding:9px 24px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:Outfit;transition:all .15s;width:100%" onmouseover="this.style.background='var(--bx-navy)';this.style.color='#fff'" onmouseout="this.style.background='none';this.style.color='var(--bx-navy)'">Solicitar Cadastro</button>
+  </div>
+</div>
+</div>
+
+<!-- ==================== REGISTRO NOVO CLIENTE ==================== -->
+<div id="registerPage">
+<div class="reg-card">
+  <div style="text-align:center;margin-bottom:20px">
+    <svg width="36" height="36" viewBox="0 0 200 200"><rect x="10" y="10" width="180" height="180" rx="30" fill="#e30613"/><polygon points="100,38 108,80 145,55 118,88 158,92 120,105 148,138 108,118 100,162 92,118 52,138 80,105 42,92 82,88 55,55 92,80" fill="#fff"/></svg>
+    <h2 style="font-size:18px;font-weight:700;color:var(--bx-navy);margin-top:8px">Cadastro de Novo Cliente</h2>
+    <p style="font-size:12px;color:var(--bx-text-s)">Preencha os dados para solicitar acesso ao Boxer Hub</p>
+  </div>
+  <div id="regContent"></div>
+</div>
+</div>
+
+<!-- ==================== APP SHELL ==================== -->
+<div id="appShell">
+<div class="topbar">
+  <div class="topbar-left">
+    <svg width="28" height="28" viewBox="0 0 200 200"><rect x="10" y="10" width="180" height="180" rx="30" fill="#e30613"/><polygon points="100,38 108,80 145,55 118,88 158,92 120,105 148,138 108,118 100,162 92,118 52,138 80,105 42,92 82,88 55,55 92,80" fill="#fff"/></svg>
+    <h1>Boxer Hub</h1>
+    <nav class="topbar-nav">
+      <a onclick="goTo('dashboard')" data-page="dashboard">Dashboard</a>
+      <a onclick="goTo('catalogo')" data-page="catalogo">Fazer Pedido</a>
+      <a onclick="goTo('pedidos')" data-page="pedidos">Meus Pedidos</a>
+      <a onclick="goTo('cadastro')" data-page="cadastro">Meu Cadastro</a>
+    </nav>
+  </div>
+  <div class="topbar-right">
+    <button class="cart-btn" onclick="goTo('carrinho')" title="Carrinho">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      <span class="cart-badge" id="cartBadge"></span>
+    </button>
+    <div class="user-pill">
+      <div class="user-avatar" id="userAvatar">CF</div>
+      <span><strong id="userName">Carlos Ferreira</strong></span>
+    </div>
+    <button class="btn-logout" onclick="doLogout()">Sair</button>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- DASHBOARD -->
+<div class="page" id="pg-dashboard">
+  <div class="welcome-bar">
+    <h2>Bom dia, <span id="dashName">Carlos</span>!</h2>
+    <span class="date" id="dashDate"></span>
+  </div>
+  <div class="promo-banner">
+    <div>
+      <h3>Eletrodo E7018 3.25mm — 15% de desconto</h3>
+      <p>Condição especial válida até 31/08/2026. Estoque limitado.</p>
+    </div>
+    <button class="promo-cta" onclick="goToPdp('EL-7018-325')">Ver produto</button>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi-card clickable" onclick="openFaturamento()"><div class="kpi-label">Faturamento do Mês</div><div class="kpi-value">R$ 47.230</div><div class="kpi-sub">+12% vs. mês anterior</div><div class="kpi-link">Ver detalhes por segmento →</div></div>
+    <div class="kpi-card"><div class="kpi-label">Pedidos em Aberto</div><div class="kpi-value">3</div><div class="kpi-sub">1 em trânsito</div></div>
+    <div class="kpi-card"><div class="kpi-label">Títulos a Vencer</div><div class="kpi-value">R$ 12.450</div><div class="kpi-sub">2 títulos em 15 dias</div></div>
+    <div class="kpi-card clickable" onclick="openCreditPanel()"><div class="kpi-label">Crédito Disponível</div><div class="kpi-value">R$ 107.660</div><div class="kpi-sub">de R$ 150.000 aprovados</div><div class="kpi-link">Gerenciar crédito →</div></div>
+  </div>
+  <div class="dash-grid">
+    <div class="card">
+      <div class="card-header"><h3>Últimos Pedidos</h3><a style="font-size:13px;color:var(--bx-cyan);cursor:pointer;font-weight:500" onclick="goTo('pedidos')">Ver todos →</a></div>
+      <div class="card-body" id="dashOrders"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Atalhos Rápidos</h3></div>
+      <div class="card-body">
+        <div class="shortcut-grid">
+          <div class="shortcut-btn" onclick="goTo('catalogo')"><div class="sc-icon" style="background:#e0f2fe;color:#0369a1;font-size:13px;font-weight:700">+P</div><div class="sc-label">Novo Pedido</div></div>
+          <div class="shortcut-btn" onclick="recomprar()"><div class="sc-icon" style="background:#fff7ed;color:#9a3412;font-size:13px;font-weight:700">RC</div><div class="sc-label">Recomprar</div></div>
+          <div class="shortcut-btn" onclick="toast('Financeiro em breve','info')"><div class="sc-icon" style="background:#ede9fe;color:#5b21b6;font-size:13px;font-weight:700">FN</div><div class="sc-label">Financeiro</div></div>
+          <div class="shortcut-btn" onclick="goTo('cadastro')"><div class="sc-icon" style="background:#d1fae5;color:#065f46;font-size:13px;font-weight:700">CD</div><div class="sc-label">Meu Cadastro</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CATALOGO -->
+<div class="page" id="pg-catalogo">
+  <div class="catalog-header">
+    <h2>Fazer Pedido</h2>
+    <p>Escolha os produtos, adicione ao carrinho e finalize seu pedido. Preços já calculados para o seu perfil.</p>
+  </div>
+  <div class="catalog-toolbar">
+    <div class="search-box">
+      <span class="search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+      <input id="catalogSearch" type="text" placeholder="Buscar por nome, SKU ou categoria..." oninput="filterCatalog()">
+    </div>
+    <div class="filter-chips" id="filterChips"></div>
+  </div>
+  <div class="catalog-info" id="catalogInfo"></div>
+  <div class="product-grid" id="productGrid"></div>
+</div>
+
+<!-- PDP -->
+<div class="page" id="pg-pdp">
+  <div class="pdp-back" onclick="goTo('catalogo')">← Voltar aos produtos</div>
+  <div class="pdp-layout">
+    <div class="pdp-gallery" id="pdpGallery"></div>
+    <div class="pdp-details" id="pdpDetails"></div>
+  </div>
+  <div id="pdpSpecs"></div>
+  <div id="pdpRelated"></div>
+</div>
+
+<!-- CARRINHO -->
+<div class="page" id="pg-carrinho">
+  <h2 style="font-size:20px;font-weight:700;color:var(--bx-navy);margin-bottom:20px">Carrinho</h2>
+  <div id="cartContent"></div>
+</div>
+
+<!-- PEDIDO CONFIRMADO -->
+<div class="page" id="pg-confirmacao">
+  <div class="confirm-wrap" id="confirmContent"></div>
+</div>
+
+<!-- MEUS PEDIDOS -->
+<div class="page" id="pg-pedidos">
+  <h2 style="font-size:20px;font-weight:700;color:var(--bx-navy);margin-bottom:20px">Meus Pedidos</h2>
+  <div class="card">
+    <div class="card-body" style="padding:0">
+      <table class="orders-table">
+        <thead><tr><th>Pedido</th><th>Data</th><th>Itens</th><th>Valor</th><th>Status</th><th>OC Cliente</th></tr></thead>
+        <tbody id="ordersBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- DETALHE PEDIDO -->
+<div class="page" id="pg-pedido-detalhe">
+  <div class="pdp-back" onclick="goTo('pedidos')">← Voltar aos pedidos</div>
+  <div id="orderDetailContent"></div>
+</div>
+
+<!-- CADASTRO -->
+<div class="page" id="pg-cadastro">
+  <h2 style="font-size:20px;font-weight:700;color:var(--bx-navy);margin-bottom:20px">Meu Cadastro</h2>
+  <div id="cadastroContent"></div>
+</div>
+
+</div><!-- .main -->
+</div><!-- #appShell -->
+
+<!-- MODAL GENÉRICO -->
+<div class="modal-overlay" id="genericModal" onclick="if(event.target===this)closeModal()">
+  <div class="modal" style="position:relative" id="genericModalContent"></div>
+</div>
+
+<!-- MODAL FATURAMENTO -->
+<div class="modal-overlay" id="fatModal" onclick="if(event.target===this)closeFatModal()">
+  <div class="modal" style="position:relative">
+    <button class="modal-close" onclick="closeFatModal()">✕</button>
+    <h3>Faturamento por Segmento</h3>
+    <p class="modal-subtitle">Análise detalhada das suas compras por linha de produto</p>
+    <div class="modal-controls">
+      <select id="fatMes" onchange="renderFatTable()">
+        <option value="8">Agosto 2026</option><option value="7">Julho 2026</option><option value="6">Junho 2026</option><option value="5">Maio 2026</option><option value="4">Abril 2026</option><option value="3">Março 2026</option><option value="2">Fevereiro 2026</option><option value="1">Janeiro 2026</option>
+      </select>
+      <div class="toggle-group">
+        <button class="toggle-btn active" id="tgMensal" onclick="setFatMode('mensal')">Mensal</button>
+        <button class="toggle-btn" id="tgAcum" onclick="setFatMode('acumulado')">Acumulado</button>
+      </div>
+    </div>
+    <div id="fatTableWrap"></div>
+  </div>
+</div>
+
+<script>
+// ===================== MOCK DATA =====================
+const USER = {
+  nome:'Carlos Ferreira', empresa:'Distribuidora Ferreira Soldas Ltda',
+  email:'carlos@distribuidoraferreira.com.br', tier:'Gold', desconto_tier:0.08,
+  credito_total:150000, credito_usado:42340,
+  cnpj:'12.345.678/0001-90', ie:'123.456.789.012', im:'54321',
+  endereco:{rua:'Av. Industrial, 1250',bairro:'Distrito Industrial',cidade:'Ribeirão Preto',uf:'SP',cep:'14095-000'},
+  entrega:{rua:'Av. Industrial, 1250 — Galpão 3',bairro:'Distrito Industrial',cidade:'Ribeirão Preto',uf:'SP',cep:'14095-000',horario:'08:00 às 17:00 (seg-sex)',dock:'Sim — altura 1,20m',empilhadeira:'Sim — até 3 toneladas',observacao:'Ligar 30min antes para abertura do portão'},
+  contato:{responsavel:'Carlos Ferreira',cargo:'Gerente de Compras',telefone:'(16) 3636-1234',celular:'(16) 99876-5432',email_compras:'compras@distribuidoraferreira.com.br',email_nfe:'nfe@distribuidoraferreira.com.br'},
+  banco:{banco:'Banco do Brasil',agencia:'1234-5',conta:'56789-0',pix:'12.345.678/0001-90'},
+  comercial:{representante:'João Marcos Silva',regiao:'Interior SP — Norte',condicao_padrao:'30/60 dias',tabela:'Distribuidor Gold',segmento:'Distribuidor Especializado'}
+};
+
+const CATEGORIAS = ['Todos','Eletrodos','Arames','Fluxos','EPIs','Acessórios'];
+
+const PRODUTOS = [
+  {sku:'EL-6013-25',nome:'Eletrodo E6013 2.5mm',cat:'Eletrodos',
+   desc:'O eletrodo mais utilizado em manutenção industrial e serralheria. Solda aços carbono comuns em todas as posições com arco estável e fácil abertura.',
+   detalhe:'Indicado para chapas finas e médias (até 6mm). Funciona em máquinas inversoras e transformadores. Remoção de escória facilitada — ideal para soldadores de todos os níveis.',
+   preco:45.90,un:'kg',emb:'Caixa 5kg',estoque:1250,peso:'5.0 kg',
+   specs:{Classificação:'AWS E6013',Diâmetro:'2.50 mm',Corrente:'CA ou CC+','Faixa de amperagem':'60 a 90A',Posições:'Todas (plana, horizontal, vertical, sobre-cabeça)',Revestimento:'Rutílico',Aplicação:'Aço carbono comum (ASTM A36, SAE 1020)'},
+   acompanha:['Caixa com 5 kg de eletrodos','Certificado de qualidade AWS','Guia de regulagem de amperagem'],promo:false},
+
+  {sku:'EL-6013-325',nome:'Eletrodo E6013 3.25mm',cat:'Eletrodos',
+   desc:'Versão mais grossa do E6013 para maior taxa de deposição. Ideal para chapas médias e grossas em manutenção geral.',
+   detalhe:'Diâmetro 3.25mm permite preencher juntas mais largas com menos passes. Recomendado para estruturas metálicas leves, grades e portões.',
+   preco:43.50,un:'kg',emb:'Caixa 5kg',estoque:890,peso:'5.0 kg',
+   specs:{Classificação:'AWS E6013',Diâmetro:'3.25 mm',Corrente:'CA ou CC+','Faixa de amperagem':'90 a 140A',Posições:'Todas',Revestimento:'Rutílico',Aplicação:'Aço carbono comum'},
+   acompanha:['Caixa com 5 kg de eletrodos','Certificado de qualidade AWS'],promo:false},
+
+  {sku:'EL-7018-25',nome:'Eletrodo E7018 2.5mm',cat:'Eletrodos',
+   desc:'Eletrodo baixo hidrogênio para soldas de alta responsabilidade. Essencial em estruturas metálicas, vasos de pressão e tubulações industriais.',
+   detalhe:'Produz soldas com alta resistência mecânica e excelente tenacidade ao impacto. Exige estufa de manutenção (150°C) para evitar absorção de umidade.',
+   preco:72.80,un:'kg',emb:'Caixa 5kg',estoque:420,peso:'5.0 kg',
+   specs:{Classificação:'AWS E7018',Diâmetro:'2.50 mm',Corrente:'CC+ (polaridade inversa)','Faixa de amperagem':'70 a 100A',Posições:'Todas',Revestimento:'Baixo Hidrogênio','Limite de resistência':'480 MPa mín.',Aplicação:'Aços estruturais, vasos de pressão (ASME), tubulações'},
+   acompanha:['Caixa com 5 kg de eletrodos','Certificado de qualidade AWS','Guia de armazenamento e ressecagem'],promo:false},
+
+  {sku:'EL-7018-325',nome:'Eletrodo E7018 3.25mm',cat:'Eletrodos',
+   desc:'A referência em soldagem estrutural — maior diâmetro do E7018 para alta produtividade em juntas de chapas grossas e perfis pesados.',
+   detalhe:'Diâmetro 3.25mm acelera o preenchimento de juntas. Utilizado em caldeirarias, montagens industriais e construção civil metálica. Requer estufa.',
+   preco:69.90,un:'kg',emb:'Caixa 5kg',estoque:650,peso:'5.0 kg',
+   specs:{Classificação:'AWS E7018',Diâmetro:'3.25 mm',Corrente:'CC+ (polaridade inversa)','Faixa de amperagem':'100 a 150A',Posições:'Todas',Revestimento:'Baixo Hidrogênio','Limite de resistência':'480 MPa mín.',Aplicação:'Estruturas metálicas, caldeiraria pesada'},
+   acompanha:['Caixa com 5 kg de eletrodos','Certificado de qualidade AWS','Guia de armazenamento e ressecagem'],promo:true,promo_pct:15},
+
+  {sku:'AR-70S6-08',nome:'Arame MIG ER70S-6 0.8mm',cat:'Arames',
+   desc:'Arame sólido fino para soldagem MIG/MAG de chapas finas. Ideal para funilaria, estruturas leves e reparos delicados.',
+   detalhe:'Diâmetro 0.8mm proporciona controle preciso do arco em materiais de até 3mm de espessura. Funciona com CO₂ puro ou mistura Ar+CO₂.',
+   preco:15.90,un:'kg',emb:'Bobina 15kg',estoque:2100,peso:'15.0 kg',
+   specs:{Classificação:'AWS ER70S-6',Diâmetro:'0.80 mm','Gás de proteção':'CO₂ puro ou Ar 75%+CO₂ 25%',Polaridade:'CC+ (DCEP)','Espessura recomendada':'0.8 a 3.0 mm','Taxa de deposição':'1.5 a 3.0 kg/h',Aplicação:'Chapas finas, funilaria, manutenção leve'},
+   acompanha:['Bobina 15 kg padrão 300mm','Certificado de composição química'],promo:false},
+
+  {sku:'AR-70S6-10',nome:'Arame MIG ER70S-6 1.0mm',cat:'Arames',
+   desc:'O arame MIG mais versátil — atende desde chapas médias até estruturas pesadas. O mais utilizado na indústria brasileira.',
+   detalhe:'Diâmetro 1.0mm é o padrão para a maioria das aplicações em aço carbono. Boa penetração, pouca geração de respingos com mistura Ar+CO₂.',
+   preco:14.50,un:'kg',emb:'Bobina 15kg',estoque:3200,peso:'15.0 kg',
+   specs:{Classificação:'AWS ER70S-6',Diâmetro:'1.00 mm','Gás de proteção':'CO₂ puro ou Ar 75%+CO₂ 25%',Polaridade:'CC+ (DCEP)','Espessura recomendada':'1.5 a 12 mm','Taxa de deposição':'2.0 a 5.0 kg/h',Aplicação:'Uso geral — estruturas, tubulações, manutenção'},
+   acompanha:['Bobina 15 kg padrão 300mm','Certificado de composição química'],promo:false},
+
+  {sku:'AR-70S6-12',nome:'Arame MIG ER70S-6 1.2mm',cat:'Arames',
+   desc:'Arame grosso para soldagem de chapas pesadas e passes de raiz em tubulações. Alta taxa de deposição para produtividade máxima.',
+   detalhe:'Diâmetro 1.2mm para chapas acima de 4mm. Requer fontes de soldagem de pelo menos 250A. Ideal para produção seriada e caldeiraria.',
+   preco:14.50,un:'kg',emb:'Bobina 15kg',estoque:1800,peso:'15.0 kg',
+   specs:{Classificação:'AWS ER70S-6',Diâmetro:'1.20 mm','Gás de proteção':'CO₂ puro ou Ar 75%+CO₂ 25%',Polaridade:'CC+ (DCEP)','Espessura recomendada':'4.0 mm ou mais','Taxa de deposição':'3.0 a 7.0 kg/h',Aplicação:'Chapas grossas, caldeiraria, produção seriada'},
+   acompanha:['Bobina 15 kg padrão 300mm','Certificado de composição química'],promo:false},
+
+  {sku:'AT-71T1-12',nome:'Arame Tubular E71T-1 1.2mm',cat:'Arames',
+   desc:'Arame tubular com fluxo interno — alta produtividade sem necessidade de gás de proteção externo em algumas aplicações.',
+   detalhe:'Até 3x mais produtivo que eletrodo revestido. Ideal para soldagem em campo, montagens externas e posições forçadas. Funciona com CO₂.',
+   preco:28.90,un:'kg',emb:'Bobina 15kg',estoque:560,peso:'15.0 kg',
+   specs:{Classificação:'AWS E71T-1',Diâmetro:'1.20 mm','Gás de proteção':'CO₂ (100%)',Polaridade:'CC+ (DCEP)',Posições:'Todas','Taxa de deposição':'3.0 a 8.0 kg/h',Aplicação:'Montagem em campo, estruturas, soldagem em posições forçadas'},
+   acompanha:['Bobina 15 kg','Certificado de qualidade e composição'],promo:false},
+
+  {sku:'FL-BX200',nome:'Fluxo Arco Submerso BX-200',cat:'Fluxos',
+   desc:'Fluxo granulado para processo de arco submerso — o método mais produtivo para soldagem de longas juntas retas em chapas grossas.',
+   detalhe:'Utilizado em fabricação de tanques, vasos de pressão, navios e estruturas pesadas. Requer máquina de arco submerso (SAW). Não é para soldagem manual.',
+   preco:8.50,un:'kg',emb:'Saco 25kg',estoque:0,peso:'25.0 kg',
+   specs:{Classificação:'AWS F7A4-EM12K',Tipo:'Aglomerado neutro','Granulometria':'12×60 mesh','Índice de basicidade':'1.5','Temperatura de secagem':'250-300°C / 2h',Aplicação:'Soldagem por arco submerso (SAW) em aços carbono e baixa liga'},
+   acompanha:['Saco 25 kg','Ficha técnica com parâmetros de soldagem'],promo:false,backorder:true,previsao:'25/08/2026'},
+
+  {sku:'EP-BX900',nome:'Máscara Auto-Escurecimento BX-900',cat:'EPIs',
+   desc:'Máscara de soldagem profissional com visor que escurece automaticamente ao detectar o arco — protege os olhos sem precisar levantar a máscara para posicionar a peça.',
+   detalhe:'4 sensores garantem detecção em qualquer ângulo. Regulagem DIN 9-13 para diferentes processos (TIG, MIG, eletrodo). Alimentação solar + bateria.',
+   preco:289.00,un:'un',emb:'1 unidade',estoque:85,peso:'0.5 kg',
+   specs:{Tipo:'Auto-escurecimento','Tonalidade (DIN)':'9 a 13 (ajustável)',Sensores:'4 pontos independentes','Tempo de escurecimento':'1/25.000 segundos','Tempo de clareamento':'0.1 a 1.0s (ajustável)','Área de visão':'98 × 43 mm',Alimentação:'Solar + bateria CR2032',Peso:'490g',Certificação:'EN 379, ANSI Z87.1'},
+   acompanha:['1 máscara completa','2 lentes protetoras externas','1 lente protetora interna','Catraca de ajuste','Manual de uso','Caixa de transporte'],promo:false},
+
+  {sku:'EP-LUV01',nome:'Luva Soldador Couro Cano Longo',cat:'EPIs',
+   desc:'Luva de proteção para soldagem com cano alto de 40cm — protege mãos e antebraços contra respingos, calor e radiação UV do arco.',
+   detalhe:'Couro curtido ao cromo resiste a temperaturas de até 250°C por breves períodos. Cano longo cobre até o cotovelo. Uso obrigatório em qualquer processo de soldagem.',
+   preco:45.00,un:'par',emb:'1 par',estoque:200,peso:'0.4 kg',
+   specs:{Material:'Couro bovino curtido ao cromo','Comprimento do cano':'40 cm','Resistência térmica':'Até 250°C (contato breve)',Costura:'Kevlar (linha resistente ao calor)',Certificação:'CA nº 12345 — EN 12477 Tipo A',Aplicação:'Soldagem MIG, TIG, eletrodo, corte com maçarico'},
+   acompanha:['1 par de luvas'],promo:false},
+
+  {sku:'EP-AVE01',nome:'Avental Soldador Couro',cat:'EPIs',
+   desc:'Avental de couro para proteção do tronco contra respingos de solda e escória quente. EPI obrigatório em operações de soldagem.',
+   detalhe:'Cobre da altura do peito até abaixo dos joelhos (60×100cm). Tiras ajustáveis no pescoço e cintura. Couro bovino natural de alta resistência.',
+   preco:89.00,un:'un',emb:'1 unidade',estoque:120,peso:'1.2 kg',
+   specs:{Material:'Couro bovino natural','Dimensões':'60 × 100 cm',Fixação:'Tiras ajustáveis (pescoço + cintura)',Certificação:'CA nº 54321 — EN ISO 11611',Aplicação:'Proteção do tronco em soldagem e corte'},
+   acompanha:['1 avental','Tiras de fixação ajustáveis'],promo:false},
+
+  {sku:'AC-TORC250',nome:'Tocha MIG 250A 3m',cat:'Acessórios',
+   desc:'Tocha para soldagem MIG/MAG com capacidade de 250A — compatível com a maioria das fontes de soldagem industriais do mercado.',
+   detalhe:'Conector padrão Euro permite encaixe em máquinas ESAB, Lincoln, Miller e similares. Refrigeração a gás para ciclos de trabalho moderados.',
+   preco:420.00,un:'un',emb:'1 unidade',estoque:3,peso:'1.8 kg',
+   specs:{Capacidade:'250A a 60% de ciclo de trabalho',Comprimento:'3 metros',Conector:'Euro (padrão)',Refrigeração:'Gás','Diâmetros de arame':'0.8 / 1.0 / 1.2 mm',Aplicação:'Soldagem MIG/MAG semi-automática'},
+   acompanha:['1 tocha completa','1 bico de contato 1.0mm','1 bocal cônico','1 difusor de gás','Chave allen para troca de bico'],promo:false},
+
+  {sku:'AC-REG01',nome:'Regulador de Pressão Argônio/CO₂',cat:'Acessórios',
+   desc:'Regulador com fluxômetro para cilindros de gás de proteção — controla a vazão de Argônio ou CO₂ durante a soldagem MIG/TIG.',
+   detalhe:'Dois manômetros: pressão do cilindro e vazão de saída. Conexão padrão W21,8 para cilindros industriais. Indispensável para qualquer processo MIG ou TIG.',
+   preco:380.00,un:'un',emb:'1 unidade',estoque:18,peso:'1.5 kg',
+   specs:{Gases:'Argônio, CO₂ ou mistura Ar+CO₂','Faixa de vazão':'0 a 25 L/min','Conexão de entrada':'W21,8 (padrão brasileiro)',Manômetros:'2 escalas (pressão do cilindro + vazão)',Material:'Corpo em latão cromado',Aplicação:'Regulagem de gás para soldagem MIG/MAG e TIG'},
+   acompanha:['1 regulador completo','Niple de saída 3/8"','Manual de instalação'],promo:false},
+
+  {sku:'EL-TUNG-24',nome:'Eletrodo Tungstênio 2% Tório 2.4mm',cat:'Eletrodos',
+   desc:'Eletrodo não consumível para soldagem TIG (GTAW) — o tungstênio forma o arco elétrico mas não se funde na poça de solda.',
+   detalhe:'A adição de 2% de Tório (ponta vermelha) facilita a abertura do arco e melhora a estabilidade. Para aços carbono, inox e ligas de cobre.',
+   preco:35.00,un:'un',emb:'Pacote 10un',estoque:340,peso:'0.05 kg',
+   specs:{Classificação:'AWS EWTh-2 (WT20)',Diâmetro:'2.40 mm',Comprimento:'175 mm','Identificação (cor)':'Vermelho (ponta)',Composição:'Tungstênio + 2% Óxido de Tório','Corrente recomendada':'150 a 250A (CC)',Aplicação:'Soldagem TIG de aços carbono, inox, cobre e ligas'},
+   acompanha:['Pacote com 10 eletrodos','Tubo protetor plástico'],promo:false}
+];
+
+const PEDIDOS_MOCK = [
+  {id:'HUB-2026-0044',data:'08/08/2026',itens:3,valor:2340.00,status:'Em trânsito',statusClass:'status-transito',oc:'OC-8834',
+   items:[{sku:'EL-7018-325',nome:'Eletrodo E7018 3.25mm',qtd:20,preco:59.42},{sku:'AR-70S6-10',nome:'Arame MIG ER70S-6 1.0mm',qtd:30,preco:13.34},{sku:'EP-LUV01',nome:'Luva Soldador',qtd:10,preco:41.40}],
+   timeline:[{step:'Pedido',done:true,dt:'08/08'},{step:'Aprovado',done:true,dt:'08/08'},{step:'Faturado',done:true,dt:'09/08'},{step:'Transporte',done:false,current:true,dt:'10/08'},{step:'Entregue',done:false,dt:'—'}]},
+  {id:'HUB-2026-0039',data:'01/08/2026',itens:5,valor:5670.00,status:'Entregue',statusClass:'status-entregue',oc:'OC-8790',
+   items:[{sku:'AR-70S6-10',nome:'Arame MIG ER70S-6 1.0mm',qtd:100,preco:13.34},{sku:'EL-6013-25',nome:'Eletrodo E6013 2.5mm',qtd:50,preco:42.23}],
+   timeline:[{step:'Pedido',done:true,dt:'01/08'},{step:'Aprovado',done:true,dt:'01/08'},{step:'Faturado',done:true,dt:'02/08'},{step:'Transporte',done:true,dt:'03/08'},{step:'Entregue',done:true,dt:'05/08'}]},
+  {id:'HUB-2026-0031',data:'22/07/2026',itens:2,valor:1890.00,status:'Entregue',statusClass:'status-entregue',oc:'OC-8745',
+   items:[{sku:'AC-TORC250',nome:'Tocha MIG 250A 3m',qtd:2,preco:386.40},{sku:'AC-REG01',nome:'Regulador Argônio/CO₂',qtd:3,preco:349.60}],
+   timeline:[{step:'Pedido',done:true,dt:'22/07'},{step:'Aprovado',done:true,dt:'22/07'},{step:'Faturado',done:true,dt:'23/07'},{step:'Transporte',done:true,dt:'24/07'},{step:'Entregue',done:true,dt:'26/07'}]}
+];
+
+const COND_PAGAMENTO = [
+  {id:'avista',label:'À Vista (3% desc. adicional)',fator:-0.03},
+  {id:'30dd',label:'30 dias',fator:0},
+  {id:'30_60',label:'30/60 dias (+1%)',fator:0.01},
+  {id:'30_60_90',label:'30/60/90 dias (+2%)',fator:0.02}
+];
+
+// FATURAMENTO MOCK DATA
+const FAT_DATA = {
+  segmentos: ['Eletrodos','Arames','Fluxos','EPIs','Acessórios'],
+  mensal: {
+    8: [18400,15200,0,5830,7800],
+    7: [16200,14800,3400,4200,6100],
+    6: [19100,12600,2800,3900,5400],
+    5: [14300,11200,4100,5100,7300],
+    4: [17600,13400,3200,4800,6200],
+    3: [15800,10900,2900,3600,5900],
+    2: [13200,9800,2100,4400,5100],
+    1: [11900,8700,1800,3200,4800]
+  },
+  mensal_ant: {
+    8: [16100,13800,2200,5200,4900],
+    7: [14900,12100,3100,3800,5400],
+    6: [17200,11400,2500,3400,4800],
+    5: [12800,10100,3600,4500,6100],
+    4: [15900,12200,2800,4100,5500],
+    3: [14200,9800,2600,3200,5200],
+    2: [11800,8500,1900,3800,4500],
+    1: [10500,7600,1500,2900,4200]
+  }
+};
+
+// ===================== STATE =====================
+let cart = [];
+let currentFilter = 'Todos';
+let orderCounter = 47;
+let fatMode = 'mensal';
+
+// ===================== CIE ENGINE =====================
+function cieCalc(preco_lista, qtd, cond_id, promo, promo_pct) {
+  let preco = preco_lista;
+  let breakdown = [{label:'Preço lista', valor:preco_lista}];
+
+  if (promo && promo_pct) {
+    preco = preco * (1 - promo_pct/100);
+    breakdown.push({label:`Promoção -${promo_pct}%`, valor: -preco_lista * promo_pct/100});
+  }
+
+  const descTier = preco * USER.desconto_tier;
+  preco = preco * (1 - USER.desconto_tier);
+  breakdown.push({label:`Desc. ${USER.tier} -${(USER.desconto_tier*100).toFixed(0)}%`, valor: -descTier});
+
+  let descVol = 0;
+  if (qtd >= 50) { descVol = 0.05; }
+  else if (qtd >= 10) { descVol = 0.03; }
+  if (descVol > 0) {
+    const dv = preco * descVol;
+    preco = preco * (1 - descVol);
+    breakdown.push({label:`Desc. volume -${(descVol*100).toFixed(0)}% (${qtd} un)`, valor: -dv});
+  }
+
+  const cond = COND_PAGAMENTO.find(c => c.id === cond_id) || COND_PAGAMENTO[1];
+  if (cond.fator !== 0) {
+    const adj = preco * Math.abs(cond.fator);
+    preco = preco * (1 + cond.fator);
+    breakdown.push({label: cond.fator < 0 ? `Desc. ${cond.label.split('(')[0].trim()}` : `Acréscimo ${cond.label.split('(')[0].trim()}`, valor: cond.fator < 0 ? -adj : adj});
+  }
+
+  return {preco_final: Math.round(preco*100)/100, breakdown};
+}
+
+function fmt(v) { return 'R$ ' + v.toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
+function fmtK(v) { return 'R$ ' + (v/1000).toFixed(1).replace('.',',') + 'k'; }
+
+// ===================== SVG ICONS =====================
+function prodIcon(cat) {
+  const colors = {Eletrodos:'#1d327b',Arames:'#25bbee',Fluxos:'#e97316',EPIs:'#16a34a','Acessórios':'#7c3aed'};
+  const c = colors[cat] || '#718096';
+  const icons = {
+    Eletrodos:`<rect x="18" y="6" width="6" height="38" rx="2" fill="${c}" opacity=".7"/><rect x="24" y="6" width="6" height="38" rx="2" fill="${c}" opacity=".5"/><rect x="30" y="6" width="6" height="38" rx="2" fill="${c}" opacity=".9"/><rect x="14" y="38" width="26" height="6" rx="2" fill="${c}"/>`,
+    Arames:`<circle cx="24" cy="24" r="16" fill="none" stroke="${c}" stroke-width="3" opacity=".7"/><circle cx="24" cy="24" r="10" fill="none" stroke="${c}" stroke-width="3"/><circle cx="24" cy="24" r="4" fill="${c}"/>`,
+    Fluxos:`<path d="M14 14h20l4 28H10z" fill="${c}" opacity=".8"/><rect x="12" y="10" width="24" height="6" rx="2" fill="${c}"/>`,
+    EPIs:`<path d="M24 6C14 6 8 14 8 24c0 8 6 14 8 18h16c2-4 8-10 8-18C40 14 34 6 24 6z" fill="${c}" opacity=".8"/><rect x="18" y="28" width="12" height="4" rx="1" fill="#fff" opacity=".5"/>`,
+    'Acessórios':`<circle cx="24" cy="24" r="12" fill="none" stroke="${c}" stroke-width="3"/><circle cx="24" cy="24" r="4" fill="${c}"/><rect x="22" y="4" width="4" height="8" rx="1" fill="${c}"/><rect x="22" y="36" width="4" height="8" rx="1" fill="${c}"/><rect x="4" y="22" width="8" height="4" rx="1" fill="${c}"/><rect x="36" y="22" width="8" height="4" rx="1" fill="${c}"/>`
+  };
+  return `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">${icons[cat]||icons.Eletrodos}</svg>`;
+}
+
+// ===================== NAVIGATION =====================
+function goTo(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('pg-'+page).classList.add('active');
+  document.querySelectorAll('.topbar-nav a').forEach(a => {
+    a.classList.toggle('active', a.dataset.page === page);
+  });
+  if (page==='catalogo') renderCatalog();
+  if (page==='dashboard') renderDashboard();
+  if (page==='carrinho') renderCart();
+  if (page==='pedidos') renderOrders();
+  if (page==='cadastro') renderCadastro();
+  window.scrollTo(0,0);
+}
+
+function goToPdp(sku) {
+  const p = PRODUTOS.find(x => x.sku === sku);
+  if (!p) return;
+  renderPdp(p);
+  document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
+  document.getElementById('pg-pdp').classList.add('active');
+  document.querySelectorAll('.topbar-nav a').forEach(a => a.classList.remove('active'));
+  window.scrollTo(0,0);
+}
+
+// ===================== LOGIN =====================
+function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const err = document.getElementById('loginErr');
+  if (!email || !pass) { err.textContent='Preencha todos os campos'; err.style.display='block'; return; }
+  err.style.display='none';
+  document.getElementById('loginPage').style.display='none';
+  document.getElementById('appShell').style.display='block';
+  goTo('dashboard');
+  toast('Bem-vindo ao Boxer Hub!','success');
+}
+document.addEventListener('keydown', e => {
+  if (e.key==='Enter' && document.getElementById('loginPage').style.display!=='none') doLogin();
+});
+
+function doLogout() {
+  cart = [];
+  document.getElementById('appShell').style.display='none';
+  document.getElementById('loginPage').style.display='flex';
+  document.getElementById('loginEmail').value='';
+  document.getElementById('loginPass').value='';
+  updateCartBadge();
+}
+
+// ===================== DASHBOARD =====================
+function renderDashboard() {
+  document.getElementById('dashDate').textContent = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const ob = document.getElementById('dashOrders');
+  ob.innerHTML = PEDIDOS_MOCK.map(o => `
+    <div class="order-mini" onclick="showOrderDetail('${o.id}')" style="cursor:pointer">
+      <div><div class="om-id">${o.id}</div><div class="om-date">${o.data}</div></div>
+      <span class="status-badge ${o.statusClass}">${o.status}</span>
+      <div class="om-val">${fmt(o.valor)}</div>
+    </div>`).join('');
+}
+
+// ===================== FATURAMENTO MODAL =====================
+function openFaturamento() {
+  document.getElementById('fatModal').classList.add('show');
+  renderFatTable();
+}
+function closeFatModal() { document.getElementById('fatModal').classList.remove('show'); }
+
+function setFatMode(mode) {
+  fatMode = mode;
+  document.getElementById('tgMensal').classList.toggle('active', mode==='mensal');
+  document.getElementById('tgAcum').classList.toggle('active', mode==='acumulado');
+  renderFatTable();
+}
+
+function renderFatTable() {
+  const mes = parseInt(document.getElementById('fatMes').value);
+  const meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto'];
+  const wrap = document.getElementById('fatTableWrap');
+
+  let valores, valoresAnt;
+  if (fatMode === 'mensal') {
+    valores = FAT_DATA.mensal[mes] || [0,0,0,0,0];
+    valoresAnt = FAT_DATA.mensal_ant[mes] || [0,0,0,0,0];
+  } else {
+    valores = [0,0,0,0,0];
+    valoresAnt = [0,0,0,0,0];
+    for (let m = 1; m <= mes; m++) {
+      const vm = FAT_DATA.mensal[m] || [0,0,0,0,0];
+      const va = FAT_DATA.mensal_ant[m] || [0,0,0,0,0];
+      for (let i=0;i<5;i++) { valores[i]+=vm[i]; valoresAnt[i]+=va[i]; }
+    }
+  }
+
+  const totalAtual = valores.reduce((a,b)=>a+b,0);
+  const totalAnt = valoresAnt.reduce((a,b)=>a+b,0);
+  const maxVal = Math.max(...valores, 1);
+  const periodo = fatMode==='mensal' ? meses[mes]+' 2026' : 'Jan a '+meses[mes]+' 2026';
+
+  let rows = FAT_DATA.segmentos.map((seg,i) => {
+    const v = valores[i], va = valoresAnt[i];
+    const pct = va > 0 ? ((v-va)/va*100) : 0;
+    const barW = Math.round(v/maxVal*100);
+    const varClass = pct >= 0 ? 'var-positive' : 'var-negative';
+    const varSign = pct >= 0 ? '+' : '';
+    return `<tr>
+      <td>${seg}</td>
+      <td><div class="bar-cell"><span>${fmtK(v)}</span><div class="bar-bg" style="width:80px"><div class="bar-fill" style="width:${barW}%"></div></div></div></td>
+      <td>${fmtK(va)}</td>
+      <td class="${varClass}">${varSign}${pct.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+
+  const totalPct = totalAnt > 0 ? ((totalAtual-totalAnt)/totalAnt*100) : 0;
+  const totalVarClass = totalPct >= 0 ? 'var-positive' : 'var-negative';
+  const totalSign = totalPct >= 0 ? '+' : '';
+
+  wrap.innerHTML = `
+    <div style="font-size:12px;color:var(--bx-text-m);margin-bottom:8px">${fatMode==='mensal'?'Resultado mensal':'Resultado acumulado'}: ${periodo}</div>
+    <table class="fat-table">
+      <thead><tr><th>Segmento</th><th>2026</th><th>2025</th><th>Var. %</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td>Total</td><td>${fmtK(totalAtual)}</td><td>${fmtK(totalAnt)}</td><td class="${totalVarClass}">${totalSign}${totalPct.toFixed(1)}%</td></tr></tfoot>
+    </table>`;
+}
+
+// ===================== CATALOGO =====================
+function renderCatalog() {
+  const chips = document.getElementById('filterChips');
+  chips.innerHTML = CATEGORIAS.map(c => `<span class="chip${c===currentFilter?' active':''}" onclick="setFilter('${c}')">${c}</span>`).join('');
+  applyFilter();
+}
+
+function setFilter(cat) {
+  currentFilter = cat;
+  renderCatalog();
+}
+
+function filterCatalog() { applyFilter(); }
+
+function applyFilter() {
+  const q = (document.getElementById('catalogSearch').value||'').toLowerCase();
+  let list = PRODUTOS;
+  if (currentFilter !== 'Todos') list = list.filter(p => p.cat === currentFilter);
+  if (q) list = list.filter(p => (p.nome+p.sku+p.cat+p.desc).toLowerCase().includes(q));
+  document.getElementById('catalogInfo').textContent = `${list.length} produto${list.length!==1?'s':''} disponíve${list.length!==1?'is':'l'} — clique para ver detalhes e adicionar ao pedido`;
+  const grid = document.getElementById('productGrid');
+  grid.innerHTML = list.map(p => {
+    const cie = cieCalc(p.preco, 1, '30dd', p.promo, p.promo_pct);
+    let stockHtml='', badgeHtml='';
+    if (p.backorder) { stockHtml=`<div class="product-stock stock-out"><span class="stock-dot"></span>Sem estoque — Previsão: ${p.previsao}</div>`; badgeHtml='<div class="badge-backorder">Backorder</div>'; }
+    else if (p.estoque <= 5) { stockHtml=`<div class="product-stock stock-low"><span class="stock-dot"></span>Últimas ${p.estoque} un</div>`; badgeHtml=`<div class="badge-low">Últimas un.</div>`; }
+    else { stockHtml=`<div class="product-stock stock-ok"><span class="stock-dot"></span>Pronta entrega</div>`; }
+    if (p.promo) badgeHtml='<div class="badge-promo">-'+p.promo_pct+'% OFF</div>';
+    const showOld = p.promo || USER.desconto_tier > 0;
+    return `<div class="product-card" onclick="goToPdp('${p.sku}')">
+      <div class="product-img">${badgeHtml}${prodIcon(p.cat)}</div>
+      <div class="product-info">
+        <div class="product-sku">${p.sku}</div>
+        <div class="product-name">${p.nome}</div>
+        <div class="product-price-row">
+          <div>${showOld?'<span class="product-price-old">'+fmt(p.preco)+'</span>':''}<span class="product-price">${fmt(cie.preco_final)}</span><span class="product-unit">/${p.un}</span></div>
+        </div>
+        ${stockHtml}
+      </div>
+      <button class="product-add" onclick="event.stopPropagation();addToCart('${p.sku}',1)">+ Adicionar ao pedido</button>
+    </div>`;
+  }).join('');
+}
+
+// ===================== PDP =====================
+function renderPdp(p) {
+  const cie = cieCalc(p.preco, 1, '30dd', p.promo, p.promo_pct);
+  document.getElementById('pdpGallery').innerHTML = `<div style="text-align:center">${prodIcon(p.cat).replace('viewBox="0 0 48 48"','viewBox="0 0 48 48" width="140" height="140"')}<div style="margin-top:12px;font-size:12px;color:var(--bx-text-m)">${p.emb}</div></div>`;
+
+  let stockHtml='';
+  if (p.backorder) stockHtml=`<div class="pdp-stock stock-out"><span class="stock-dot"></span>Sem estoque — Backorder disponível. Previsão: <strong>${p.previsao}</strong></div>`;
+  else if (p.estoque<=5) stockHtml=`<div class="pdp-stock stock-low"><span class="stock-dot"></span>Últimas ${p.estoque} unidades</div>`;
+  else stockHtml=`<div class="pdp-stock stock-ok"><span class="stock-dot"></span>${p.estoque} unidades em estoque — pronta entrega</div>`;
+
+  document.getElementById('pdpDetails').innerHTML = `
+    <div class="pdp-sku">${p.sku} · ${p.cat} · ${p.emb}</div>
+    <div class="pdp-title">${p.nome}</div>
+    <div class="pdp-price-box">
+      <div class="pdp-price-list">Preço lista: <span>${fmt(p.preco)}/${p.un}</span></div>
+      <div class="pdp-price-final">${fmt(cie.preco_final)} <small>/${p.un}</small></div>
+      <div class="pdp-cie-tag">CIE — Preço calculado para ${USER.tier} · Desc. ${(USER.desconto_tier*100).toFixed(0)}%${p.promo?' + Promo '+p.promo_pct+'%':''}</div>
+      <div style="margin-top:10px;font-size:12px;color:var(--bx-text-s)">
+        ${cie.breakdown.map(b => `<div style="display:flex;justify-content:space-between;padding:2px 0"><span>${b.label}</span><span style="font-variant-numeric:tabular-nums">${b.valor>=0?fmt(b.valor):'-'+fmt(Math.abs(b.valor))}</span></div>`).join('')}
+      </div>
+    </div>
+    ${stockHtml}
+    <div class="pdp-actions">
+      <div class="qty-control">
+        <button onclick="pdpQty(-1)">−</button>
+        <input type="number" id="pdpQty" value="1" min="1">
+        <button onclick="pdpQty(1)">+</button>
+      </div>
+      <button class="btn-add-cart" onclick="addFromPdp('${p.sku}')">+ Adicionar ao pedido</button>
+    </div>`;
+
+  const specsHtml = Object.entries(p.specs).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+  document.getElementById('pdpSpecs').innerHTML = `
+    <div class="pdp-section"><h3>Ficha Técnica</h3><table class="specs-table">${specsHtml}</table></div>
+    <div class="pdp-section"><h3>O que acompanha</h3><ul class="accomp-list">${p.acompanha.map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    <div class="pdp-section"><h3>Sobre o Produto</h3><div class="pdp-desc-box"><p><strong>O que é:</strong> ${p.desc}</p>${p.detalhe ? `<p><strong>Para que serve:</strong> ${p.detalhe}</p>` : ''}</div></div>`;
+
+  const related = PRODUTOS.filter(x => x.cat===p.cat && x.sku!==p.sku).slice(0,4);
+  if (related.length) {
+    document.getElementById('pdpRelated').innerHTML = `
+      <div class="pdp-section"><h3>Produtos Relacionados</h3>
+      <div class="related-grid">${related.map(r => {
+        const rc = cieCalc(r.preco,1,'30dd',r.promo,r.promo_pct);
+        return `<div class="related-card" onclick="goToPdp('${r.sku}')"><div style="height:60px;display:flex;align-items:center;justify-content:center">${prodIcon(r.cat)}</div><div class="rc-name">${r.nome}</div><div class="rc-price">${fmt(rc.preco_final)}/${r.un}</div></div>`;
+      }).join('')}</div></div>`;
+  } else {
+    document.getElementById('pdpRelated').innerHTML = '';
+  }
+}
+
+function pdpQty(delta) {
+  const inp = document.getElementById('pdpQty');
+  inp.value = Math.max(1, parseInt(inp.value||1) + delta);
+}
+
+function addFromPdp(sku) {
+  const qty = parseInt(document.getElementById('pdpQty').value) || 1;
+  addToCart(sku, qty);
+}
+
+// ===================== CART =====================
+function addToCart(sku, qty) {
+  const existing = cart.find(c => c.sku === sku);
+  if (existing) { existing.qtd += qty; }
+  else { cart.push({sku, qtd: qty}); }
+  updateCartBadge();
+  const p = PRODUTOS.find(x=>x.sku===sku);
+  toast(`${p.nome} adicionado ao pedido`,'success');
+}
+
+function updateCartBadge() {
+  const badge = document.getElementById('cartBadge');
+  const total = cart.reduce((s,c) => s+c.qtd, 0);
+  badge.textContent = total > 0 ? total : '';
+}
+
+function removeFromCart(sku) {
+  cart = cart.filter(c => c.sku !== sku);
+  updateCartBadge();
+  renderCart();
+}
+
+function updateCartQty(sku, val) {
+  const item = cart.find(c => c.sku === sku);
+  if (!item) return;
+  item.qtd = Math.max(1, parseInt(val) || 1);
+  updateCartBadge();
+  renderCart();
+}
+
+function renderCart() {
+  const wrap = document.getElementById('cartContent');
+  if (cart.length === 0) {
+    wrap.innerHTML = `<div class="cart-empty"><h3>Seu carrinho está vazio</h3><p style="margin-bottom:20px">Vá até "Fazer Pedido" para escolher os produtos.</p><button class="btn-add-cart" style="display:inline-flex;width:auto" onclick="goTo('catalogo')">Fazer Pedido</button></div>`;
+    return;
+  }
+  const condId = 'cartCond';
+  const cond = document.getElementById(condId)?.value || '30dd';
+
+  let itemsHtml = cart.map(c => {
+    const p = PRODUTOS.find(x=>x.sku===c.sku);
+    if (!p) return '';
+    const cie = cieCalc(p.preco, c.qtd, cond, p.promo, p.promo_pct);
+    const sub = cie.preco_final * c.qtd;
+    let boHtml = '';
+    if (p.backorder) boHtml = `<div class="ci-backorder">⚠ Backorder — Previsão: ${p.previsao}</div>`;
+    return `<div class="cart-item">
+      <div class="cart-item-img">${prodIcon(p.cat)}</div>
+      <div><div class="ci-name">${p.nome}</div><div class="ci-sku">${p.sku} · ${p.emb}</div>${boHtml}</div>
+      <div class="qty-control" style="transform:scale(.85)">
+        <button onclick="updateCartQty('${p.sku}',${c.qtd-1})">−</button>
+        <input type="number" value="${c.qtd}" min="1" onchange="updateCartQty('${p.sku}',this.value)" style="width:44px">
+        <button onclick="updateCartQty('${p.sku}',${c.qtd+1})">+</button>
+      </div>
+      <div class="ci-price">${fmt(cie.preco_final)}/${p.un}</div>
+      <div class="ci-subtotal">${fmt(sub)}</div>
+      <button class="ci-remove" onclick="removeFromCart('${p.sku}')" title="Remover">✕</button>
+    </div>`;
+  }).join('');
+
+  let totalBruto=0, totalFinal=0;
+  cart.forEach(c => {
+    const p = PRODUTOS.find(x=>x.sku===c.sku);
+    if (!p) return;
+    totalBruto += p.preco * c.qtd;
+    const cie = cieCalc(p.preco, c.qtd, cond, p.promo, p.promo_pct);
+    totalFinal += cie.preco_final * c.qtd;
+  });
+  const desconto = totalBruto - totalFinal;
+
+  const sugSku = cart[0]?.sku;
+  const sugProd = PRODUTOS.find(x => x.sku === sugSku);
+  const suggestions = sugProd ? PRODUTOS.filter(x => x.cat === sugProd.cat && !cart.find(c=>c.sku===x.sku)).slice(0,2) : [];
+  let sugHtml = '';
+  if (suggestions.length) {
+    sugHtml = `<div class="cie-suggestion"><h4>⚡ Sugestão CIE</h4><div class="sug-items">${suggestions.map(s=>{
+      const sc=cieCalc(s.preco,1,cond,s.promo,s.promo_pct);
+      return `<div class="sug-card" onclick="addToCart('${s.sku}',1)"><div style="height:36px;display:flex;align-items:center;justify-content:center">${prodIcon(s.cat)}</div><div class="sug-name">${s.nome}</div><div class="sug-price">${fmt(sc.preco_final)}/${s.un}</div></div>`;
+    }).join('')}</div></div>`;
+  }
+
+  const creditoDisp = USER.credito_total - USER.credito_usado;
+  const excedeCred = totalFinal > creditoDisp;
+  let creditAlertHtml = '';
+  if (excedeCred) {
+    creditAlertHtml = `<div class="credit-alert">
+      <svg class="credit-alert-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+      <div class="credit-alert-text">
+        <strong>Crédito insuficiente.</strong> O valor deste pedido (${fmt(totalFinal)}) excede seu crédito disponível (${fmt(creditoDisp)}).
+        <div class="credit-alert-actions">
+          <button style="background:var(--bx-navy);color:#fff" onclick="solicitarAumentoCredito()">Solicitar Aumento</button>
+          <button style="background:#fff;color:var(--bx-navy);border:1px solid var(--bx-border)" onclick="anteciparPagamento()">Antecipar Pagamento</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  wrap.innerHTML = `<div class="cart-layout">
+    <div>
+      <div class="cart-items">${itemsHtml}</div>
+      ${sugHtml}
+    </div>
+    <div class="cart-summary">
+      <h3>Resumo do Pedido</h3>
+      ${creditAlertHtml}
+      <div class="summary-row"><span class="label">Subtotal (lista)</span><span class="val">${fmt(totalBruto)}</span></div>
+      <div class="summary-row"><span class="label">Descontos CIE</span><span class="val" style="color:var(--bx-green)">-${fmt(desconto)}</span></div>
+      <div class="summary-row total"><span>Total</span><span>${fmt(totalFinal)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--bx-text-s);padding:8px 0;border-bottom:1px solid var(--bx-border-l)"><span>Crédito disponível</span><span style="font-weight:600;color:${excedeCred?'#dc2626':'var(--bx-green)'};font-variant-numeric:tabular-nums">${fmt(creditoDisp)}</span></div>
+      <div class="cart-field">
+        <label>Condição de Pagamento</label>
+        <select id="cartCond" onchange="renderCart()">
+          ${COND_PAGAMENTO.map(c=>`<option value="${c.id}"${c.id===cond?' selected':''}>${c.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="cart-field">
+        <label>Seu número de pedido interno</label>
+        <input type="text" id="cartOC" placeholder="Ex: OC-8850, PED-1234" value="${document.getElementById('cartOC')?.value||''}">
+        <div class="field-hint">Informe o número de pedido ou ordem de compra que consta no seu sistema. Esse número aparecerá em todos os documentos (NF, boleto, rastreamento) para facilitar o controle interno da sua empresa.</div>
+      </div>
+      <button class="btn-checkout" onclick="doCheckout()" ${excedeCred?'disabled style="opacity:.5;cursor:not-allowed;width:100%;padding:14px;background:var(--bx-navy);color:#fff;border:none;border-radius:6px;font-size:15px;font-weight:600;font-family:Outfit"':''}>${excedeCred?'Crédito Insuficiente':'Finalizar Pedido'}</button>
+    </div>
+  </div>`;
+}
+
+function doCheckout() {
+  if (cart.length === 0) return;
+  orderCounter++;
+  const cond = document.getElementById('cartCond')?.value || '30dd';
+  const oc = document.getElementById('cartOC')?.value || '—';
+  const condLabel = COND_PAGAMENTO.find(c=>c.id===cond)?.label || '30 dias';
+
+  let totalFinal = 0;
+  const itemsSummary = cart.map(c => {
+    const p = PRODUTOS.find(x=>x.sku===c.sku);
+    const cie = cieCalc(p.preco, c.qtd, cond, p.promo, p.promo_pct);
+    totalFinal += cie.preco_final * c.qtd;
+    return `<div class="conf-row"><span>${p.nome} × ${c.qtd}</span><span style="font-weight:600;font-variant-numeric:tabular-nums">${fmt(cie.preco_final*c.qtd)}</span></div>`;
+  }).join('');
+
+  const numPedido = `HUB-2026-${String(orderCounter).padStart(4,'0')}`;
+
+  document.getElementById('confirmContent').innerHTML = `
+    <div class="confirm-icon">✓</div>
+    <h2>Pedido enviado com sucesso!</h2>
+    <p class="conf-num">${numPedido}</p>
+    <div class="confirm-details">
+      ${itemsSummary}
+      <div class="conf-row" style="border-top:2px solid var(--bx-border-l);margin-top:8px;padding-top:12px;font-weight:700;font-size:15px;color:var(--bx-navy)"><span>Total</span><span>${fmt(totalFinal)}</span></div>
+      <div class="conf-row"><span style="color:var(--bx-text-s)">Pagamento</span><span>${condLabel}</span></div>
+      <div class="conf-row"><span style="color:var(--bx-text-s)">Seu pedido interno</span><span>${oc}</span></div>
+      <div class="conf-row"><span style="color:var(--bx-text-s)">Previsão de entrega</span><span>5-7 dias úteis</span></div>
+    </div>
+    <button class="btn-orders" onclick="goTo('pedidos')">Ver Meus Pedidos</button>`;
+
+  PEDIDOS_MOCK.unshift({
+    id: numPedido, data: new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}),
+    itens: cart.length, valor: totalFinal, status: 'Em análise', statusClass: 'status-analise', oc,
+    items: cart.map(c => {const p=PRODUTOS.find(x=>x.sku===c.sku);const cie=cieCalc(p.preco,c.qtd,cond,p.promo,p.promo_pct);return {sku:c.sku,nome:p.nome,qtd:c.qtd,preco:cie.preco_final};}),
+    timeline:[{step:'Pedido',done:true,dt:'Hoje'},{step:'Aprovado',done:false},{step:'Faturado',done:false},{step:'Transporte',done:false},{step:'Entregue',done:false}]
+  });
+
+  cart = [];
+  updateCartBadge();
+  document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
+  document.getElementById('pg-confirmacao').classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ===================== PEDIDOS =====================
+function renderOrders() {
+  document.getElementById('ordersBody').innerHTML = PEDIDOS_MOCK.map(o => `
+    <tr onclick="showOrderDetail('${o.id}')">
+      <td><span class="order-id-link">${o.id}</span></td>
+      <td>${o.data}</td>
+      <td>${o.itens}</td>
+      <td class="order-val">${fmt(o.valor)}</td>
+      <td><span class="status-badge ${o.statusClass}">${o.status}</span></td>
+      <td>${o.oc||'—'}</td>
+    </tr>`).join('');
+}
+
+function showOrderDetail(id) {
+  const o = PEDIDOS_MOCK.find(x=>x.id===id);
+  if (!o) return;
+  const timelineHtml = o.timeline.map(t => `
+    <div class="timeline-step">
+      <div class="timeline-dot${t.done?' done':''}${t.current?' current':''}">${t.done?'✓':t.current?'●':''}</div>
+      <div class="timeline-label">${t.step}</div>
+      <div class="timeline-date">${t.dt||''}</div>
+    </div>`).join('');
+
+  const itemsHtml = o.items.map(i => `<tr><td>${i.nome}</td><td>${i.sku}</td><td style="text-align:center">${i.qtd}</td><td style="text-align:right;font-variant-numeric:tabular-nums">${fmt(i.preco)}</td><td style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums">${fmt(i.preco*i.qtd)}</td></tr>`).join('');
+
+  document.getElementById('orderDetailContent').innerHTML = `
+    <div class="order-detail-header"><h2>Pedido ${o.id}</h2><span class="status-badge ${o.statusClass}">${o.status}</span></div>
+    <div class="card" style="margin-bottom:20px"><div class="card-body"><div class="timeline">${timelineHtml}</div></div></div>
+    <div class="od-grid">
+      <div class="card"><div class="card-header"><h3>Informações</h3></div><div class="card-body">
+        <table class="od-info-table">
+          <tr><td>Data do pedido</td><td>${o.data}</td></tr>
+          <tr><td>Seu pedido interno</td><td>${o.oc||'—'}</td></tr>
+          <tr><td>Valor total</td><td style="font-weight:600">${fmt(o.valor)}</td></tr>
+          <tr><td>Status</td><td>${o.status}</td></tr>
+        </table>
+      </div></div>
+      <div class="card"><div class="card-header"><h3>Itens do Pedido</h3></div><div class="card-body" style="padding:0;overflow-x:auto">
+        <table class="orders-table"><thead><tr><th>Produto</th><th>SKU</th><th style="text-align:center">Qtd</th><th style="text-align:right">Unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>${itemsHtml}</tbody></table>
+      </div></div>
+    </div>
+    <div style="margin-top:20px;text-align:center"><button class="btn-add-cart" style="display:inline-flex;width:auto;padding:10px 24px" onclick="recomprarPedido('${o.id}')">Recomprar este pedido</button></div>`;
+
+  document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active'));
+  document.getElementById('pg-pedido-detalhe').classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function recomprarPedido(id) {
+  const o = PEDIDOS_MOCK.find(x=>x.id===id);
+  if (!o) return;
+  o.items.forEach(i => addToCart(i.sku, i.qtd));
+  goTo('carrinho');
+  toast('Itens adicionados ao pedido','success');
+}
+
+function recomprar() {
+  if (PEDIDOS_MOCK.length) recomprarPedido(PEDIDOS_MOCK[0].id);
+}
+
+// ===================== CADASTRO =====================
+function renderCadastro() {
+  const u = USER;
+  document.getElementById('cadastroContent').innerHTML = `
+    <div style="background:#eef2f7;border:1px solid var(--bx-border);border-radius:6px;padding:12px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:13px;color:var(--bx-text-s)">Seus dados cadastrais são somente leitura. Para solicitar alterações, utilize o botão ao lado.</div>
+      <button style="padding:8px 16px;background:#fff;border:1.5px solid var(--bx-navy);color:var(--bx-navy);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:Outfit;white-space:nowrap" onclick="solicitarAlteracao()">Solicitar Alteração</button>
+    </div>
+    <div class="cadastro-grid">
+      <div class="card"><div class="card-header"><h3>Dados da Empresa</h3><span class="cadastro-tag">${u.tier}</span></div><div class="card-body"><div class="cadastro-section">
+        <div class="cadastro-row"><span class="cr-label">Razão Social</span><span class="cr-value">${u.empresa}</span></div>
+        <div class="cadastro-row"><span class="cr-label">CNPJ</span><span class="cr-value">${u.cnpj}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Inscrição Estadual</span><span class="cr-value">${u.ie}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Inscrição Municipal</span><span class="cr-value">${u.im}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Segmento</span><span class="cr-value">${u.comercial.segmento}</span></div>
+      </div></div></div>
+
+      <div class="card"><div class="card-header"><h3>Contato Principal</h3></div><div class="card-body"><div class="cadastro-section">
+        <div class="cadastro-row"><span class="cr-label">Responsável</span><span class="cr-value">${u.contato.responsavel}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Cargo</span><span class="cr-value">${u.contato.cargo}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Telefone</span><span class="cr-value">${u.contato.telefone}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Celular</span><span class="cr-value">${u.contato.celular}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Email (compras)</span><span class="cr-value">${u.contato.email_compras}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Email (NF-e/XML)</span><span class="cr-value">${u.contato.email_nfe}</span></div>
+      </div></div></div>
+
+      <div class="card"><div class="card-header"><h3>Endereço de Faturamento</h3></div><div class="card-body"><div class="cadastro-section">
+        <div class="cadastro-row"><span class="cr-label">Logradouro</span><span class="cr-value">${u.endereco.rua}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Bairro</span><span class="cr-value">${u.endereco.bairro}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Cidade / UF</span><span class="cr-value">${u.endereco.cidade} — ${u.endereco.uf}</span></div>
+        <div class="cadastro-row"><span class="cr-label">CEP</span><span class="cr-value">${u.endereco.cep}</span></div>
+      </div></div></div>
+
+      <div class="card"><div class="card-header"><h3>Endereço de Entrega</h3></div><div class="card-body"><div class="cadastro-section">
+        <div class="cadastro-row"><span class="cr-label">Logradouro</span><span class="cr-value">${u.entrega.rua}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Bairro</span><span class="cr-value">${u.entrega.bairro}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Cidade / UF</span><span class="cr-value">${u.entrega.cidade} — ${u.entrega.uf}</span></div>
+        <div class="cadastro-row"><span class="cr-label">CEP</span><span class="cr-value">${u.entrega.cep}</span></div>
+      </div></div></div>
+
+      <div class="card"><div class="card-header"><h3>Características da Entrega</h3></div><div class="card-body"><div class="cadastro-section">
+        <div class="cadastro-row"><span class="cr-label">Horário de recebimento</span><span class="cr-value">${u.entrega.horario}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Possui doca?</span><span class="cr-value">${u.entrega.dock}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Possui empilhadeira?</span><span class="cr-value">${u.entrega.empilhadeira}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Observações</span><span class="cr-value">${u.entrega.observacao}</span></div>
+      </div></div></div>
+
+      <div class="card"><div class="card-header"><h3>Dados Bancários</h3></div><div class="card-body"><div class="cadastro-section">
+        <div class="cadastro-row"><span class="cr-label">Banco</span><span class="cr-value">${u.banco.banco}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Agência</span><span class="cr-value">${u.banco.agencia}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Conta</span><span class="cr-value">${u.banco.conta}</span></div>
+        <div class="cadastro-row"><span class="cr-label">Chave PIX</span><span class="cr-value">${u.banco.pix}</span></div>
+      </div></div></div>
+    </div>`;
+}
+
+function solicitarAlteracao() {
+  openModal(`
+    <h3 style="font-size:16px;font-weight:600;color:var(--bx-navy);margin-bottom:4px">Solicitar Alteração Cadastral</h3>
+    <p style="font-size:12px;color:var(--bx-text-s);margin-bottom:16px">Sua solicitação será analisada pelo time comercial em até 2 dias úteis.</p>
+    <div class="form-row"><label style="display:block;font-size:11px;font-weight:600;color:var(--bx-text-s);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Seção a alterar</label><select style="width:100%;padding:8px 12px;border:1.5px solid var(--bx-border);border-radius:6px;font-size:13px;font-family:Outfit"><option>Dados da Empresa</option><option>Contato Principal</option><option>Endereço de Faturamento</option><option>Endereço de Entrega</option><option>Características da Entrega</option><option>Dados Bancários</option></select></div>
+    <div class="form-row" style="margin-top:12px"><label style="display:block;font-size:11px;font-weight:600;color:var(--bx-text-s);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Descreva a alteração</label><textarea style="width:100%;padding:8px 12px;border:1.5px solid var(--bx-border);border-radius:6px;font-size:13px;font-family:Outfit;min-height:80px;resize:vertical" placeholder="Ex: Alterar endereço de entrega para Rua Nova, 500 — Galpão 2"></textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--bx-border-l)">
+      <button style="padding:8px 16px;background:#fff;border:1px solid var(--bx-border);border-radius:6px;font-size:13px;cursor:pointer;font-family:Outfit" onclick="closeModal()">Cancelar</button>
+      <button style="padding:8px 16px;background:var(--bx-navy);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:Outfit" onclick="closeModal();toast('Solicitação enviada. Você será notificado quando aprovada.','success')">Enviar Solicitação</button>
+    </div>`);
+}
+
+// ===================== MODAL GENÉRICO =====================
+function openModal(html) {
+  document.getElementById('genericModalContent').innerHTML = html;
+  document.getElementById('genericModal').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('genericModal').classList.remove('show');
+}
+
+// ===================== REGISTRO NOVO CLIENTE =====================
+let regStep = 1;
+const regData = {};
+
+function showRegister() {
+  document.getElementById('loginPage').style.display='none';
+  document.getElementById('appShell').style.display='none';
+  document.getElementById('registerPage').style.display='flex';
+  regStep = 1;
+  renderRegStep();
+}
+
+function backToLogin() {
+  document.getElementById('registerPage').style.display='none';
+  document.getElementById('loginPage').style.display='flex';
+}
+
+function renderRegStep() {
+  const wrap = document.getElementById('regContent');
+  const steps = ['Empresa','Endereço','Entrega','Contato','Bancário'];
+  const stepsHtml = steps.map((s,i) => `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:${i+1<=regStep?'var(--bx-navy)':'var(--bx-text-m)'};font-weight:${i+1===regStep?'700':'400'}"><span style="width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;${i+1<regStep?'background:var(--bx-green);color:#fff':i+1===regStep?'background:var(--bx-navy);color:#fff':'background:var(--bx-border-l);color:var(--bx-text-m)'}">${i+1<regStep?'✓':i+1}</span>${s}</div>`).join('<div style="flex:1;height:1px;background:var(--bx-border-l)"></div>');
+
+  let formHtml = '';
+  if (regStep===1) formHtml = `
+    <h3 style="font-size:16px;font-weight:600;color:var(--bx-navy);margin-bottom:16px">Dados da Empresa</h3>
+    <div class="form-row"><label class="reg-label">CNPJ</label><input class="reg-input" id="regCnpj" placeholder="00.000.000/0000-00"></div>
+    <div class="form-row"><label class="reg-label">Razão Social</label><input class="reg-input" id="regRazao" placeholder="Nome da empresa conforme contrato social"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-row"><label class="reg-label">Inscrição Estadual</label><input class="reg-input" id="regIe" placeholder="000.000.000.000"></div>
+      <div class="form-row"><label class="reg-label">Inscrição Municipal</label><input class="reg-input" id="regIm" placeholder="Opcional"></div>
+    </div>
+    <div class="form-row"><label class="reg-label">Segmento</label><select class="reg-input" id="regSeg"><option value="">Selecione...</option><option>Distribuidor Especializado</option><option>Revendedor</option><option>Indústria</option><option>Construção Civil</option><option>Prestador de Serviço</option></select></div>`;
+  else if (regStep===2) formHtml = `
+    <h3 style="font-size:16px;font-weight:600;color:var(--bx-navy);margin-bottom:16px">Endereço de Faturamento</h3>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px">
+      <div class="form-row"><label class="reg-label">CEP</label><input class="reg-input" id="regCep" placeholder="00000-000"></div>
+      <div class="form-row"><label class="reg-label">Logradouro</label><input class="reg-input" id="regRua" placeholder="Av. / Rua / Rod."></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 80px;gap:12px">
+      <div class="form-row"><label class="reg-label">Bairro</label><input class="reg-input" id="regBairro" placeholder="Bairro"></div>
+      <div class="form-row"><label class="reg-label">Cidade</label><input class="reg-input" id="regCidade" placeholder="Cidade"></div>
+      <div class="form-row"><label class="reg-label">UF</label><select class="reg-input" id="regUf"><option>SP</option><option>MG</option><option>RJ</option><option>PR</option><option>SC</option><option>RS</option><option>BA</option><option>GO</option><option>MT</option><option>MS</option></select></div>
+    </div>
+    <div class="form-row" style="margin-top:12px"><label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="regSameAddr" checked> Endereço de entrega é o mesmo do faturamento</label></div>`;
+  else if (regStep===3) formHtml = `
+    <h3 style="font-size:16px;font-weight:600;color:var(--bx-navy);margin-bottom:16px">Características da Entrega</h3>
+    <div class="form-row"><label class="reg-label">Horário de recebimento</label><input class="reg-input" id="regHorario" placeholder="Ex: 08:00 às 17:00 (seg-sex)"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-row"><label class="reg-label">Possui doca?</label><select class="reg-input" id="regDock"><option value="Não">Não</option><option value="Sim">Sim</option></select></div>
+      <div class="form-row"><label class="reg-label">Possui empilhadeira?</label><select class="reg-input" id="regEmpilh"><option value="Não">Não</option><option value="Sim">Sim</option></select></div>
+    </div>
+    <div class="form-row"><label class="reg-label">Observações de entrega</label><textarea class="reg-input" id="regObs" style="min-height:60px;resize:vertical" placeholder="Informações importantes para o motorista (ex: ligar antes, portão lateral, etc)"></textarea></div>`;
+  else if (regStep===4) formHtml = `
+    <h3 style="font-size:16px;font-weight:600;color:var(--bx-navy);margin-bottom:16px">Contato Principal</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-row"><label class="reg-label">Nome completo</label><input class="reg-input" id="regNome" placeholder="Nome do responsável"></div>
+      <div class="form-row"><label class="reg-label">Cargo</label><input class="reg-input" id="regCargo" placeholder="Ex: Gerente de Compras"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-row"><label class="reg-label">Telefone</label><input class="reg-input" id="regTel" placeholder="(00) 0000-0000"></div>
+      <div class="form-row"><label class="reg-label">Celular</label><input class="reg-input" id="regCel" placeholder="(00) 00000-0000"></div>
+    </div>
+    <div class="form-row"><label class="reg-label">Email para pedidos</label><input class="reg-input" id="regEmailPed" type="email" placeholder="compras@suaempresa.com.br"></div>
+    <div class="form-row"><label class="reg-label">Email para NF-e / XML</label><input class="reg-input" id="regEmailNfe" type="email" placeholder="nfe@suaempresa.com.br"></div>`;
+  else if (regStep===5) formHtml = `
+    <h3 style="font-size:16px;font-weight:600;color:var(--bx-navy);margin-bottom:16px">Dados Bancários</h3>
+    <p style="font-size:12px;color:var(--bx-text-s);margin-bottom:16px">Dados para devolução de valores, se necessário.</p>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px">
+      <div class="form-row"><label class="reg-label">Banco</label><input class="reg-input" id="regBanco" placeholder="Nome do banco"></div>
+      <div class="form-row"><label class="reg-label">Agência</label><input class="reg-input" id="regAg" placeholder="0000-0"></div>
+      <div class="form-row"><label class="reg-label">Conta</label><input class="reg-input" id="regConta" placeholder="00000-0"></div>
+    </div>
+    <div class="form-row"><label class="reg-label">Chave PIX</label><input class="reg-input" id="regPix" placeholder="CNPJ, email ou telefone"></div>`;
+
+  const isLast = regStep === 5;
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;gap:0;margin-bottom:24px">${stepsHtml}</div>
+    ${formHtml}
+    <div style="display:flex;justify-content:space-between;margin-top:24px;padding-top:16px;border-top:1px solid var(--bx-border-l)">
+      <button style="padding:8px 16px;background:#fff;border:1px solid var(--bx-border);border-radius:6px;font-size:13px;cursor:pointer;font-family:Outfit" onclick="${regStep===1?'backToLogin()':'regStep--;renderRegStep()'}">${regStep===1?'Voltar ao login':'Voltar'}</button>
+      <button style="padding:8px 20px;background:var(--bx-navy);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:Outfit" onclick="${isLast?'finishRegister()':'regStep++;renderRegStep()'}">${isLast?'Enviar Cadastro':'Próximo'}</button>
+    </div>`;
+}
+
+function finishRegister() {
+  document.getElementById('regContent').innerHTML = `
+    <div style="text-align:center;padding:40px 20px">
+      <div style="width:64px;height:64px;border-radius:50%;background:#d1fae5;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:28px;color:var(--bx-green);font-weight:700">✓</div>
+      <h3 style="font-size:18px;font-weight:700;color:var(--bx-navy);margin-bottom:8px">Cadastro enviado com sucesso</h3>
+      <p style="font-size:13px;color:var(--bx-text-s);margin-bottom:8px">Seu cadastro será analisado pelo time comercial da Boxer Soldas.</p>
+      <p style="font-size:13px;color:var(--bx-text-s);margin-bottom:24px">Prazo de análise: <strong>até 3 dias úteis</strong>. Você receberá um email com a confirmação e suas credenciais de acesso.</p>
+      <button style="padding:10px 24px;background:var(--bx-navy);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;font-family:Outfit" onclick="backToLogin()">Voltar ao Login</button>
+    </div>`;
+}
+
+// ===================== CRÉDITO =====================
+function solicitarAumentoCredito() {
+  openModal(`
+    <h3 style="font-size:16px;font-weight:600;color:var(--bx-navy);margin-bottom:4px">Solicitar Aumento de Crédito</h3>
+    <p style="font-size:12px;color:var(--bx-text-s);margin-bottom:16px">Seu limite atual: ${fmt(USER.credito_total)} · Utilizado: ${fmt(USER.credito_usado)} · Disponível: ${fmt(USER.credito_total - USER.credito_usado)}</p>
+    <div class="form-row"><label style="display:block;font-size:11px;font-weight:600;color:var(--bx-text-s);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Novo limite desejado</label><input style="width:100%;padding:8px 12px;border:1.5px solid var(--bx-border);border-radius:6px;font-size:13px;font-family:Outfit" placeholder="Ex: R$ 200.000,00"></div>
+    <div class="form-row" style="margin-top:12px"><label style="display:block;font-size:11px;font-weight:600;color:var(--bx-text-s);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Justificativa</label><textarea style="width:100%;padding:8px 12px;border:1.5px solid var(--bx-border);border-radius:6px;font-size:13px;font-family:Outfit;min-height:60px;resize:vertical" placeholder="Ex: Aumento de volume de compras, novo contrato com cliente final"></textarea></div>
+    <p style="font-size:11px;color:var(--bx-text-m);margin-top:12px">A análise de crédito leva até 5 dias úteis. Documentação adicional poderá ser solicitada.</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--bx-border-l)">
+      <button style="padding:8px 16px;background:#fff;border:1px solid var(--bx-border);border-radius:6px;font-size:13px;cursor:pointer;font-family:Outfit" onclick="closeModal()">Cancelar</button>
+      <button style="padding:8px 16px;background:var(--bx-navy);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:Outfit" onclick="closeModal();toast('Solicitação de aumento enviada para análise.','success')">Solicitar Análise</button>
+    </div>`);
+}
+
+function openCreditPanel() {
+  const disp = USER.credito_total - USER.credito_usado;
+  const pct = Math.round((USER.credito_usado / USER.credito_total) * 100);
+  openModal(`
+    <h3 style="font-size:16px;font-weight:600;color:var(--bx-navy);margin-bottom:16px">Gestão de Crédito</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+      <div style="background:var(--bx-bg);border-radius:8px;padding:14px;text-align:center"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--bx-text-s);font-weight:600;margin-bottom:4px">Limite Total</div><div style="font-size:18px;font-weight:700;color:var(--bx-navy);font-variant-numeric:tabular-nums">${fmt(USER.credito_total)}</div></div>
+      <div style="background:var(--bx-bg);border-radius:8px;padding:14px;text-align:center"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--bx-text-s);font-weight:600;margin-bottom:4px">Utilizado</div><div style="font-size:18px;font-weight:700;color:var(--bx-orange);font-variant-numeric:tabular-nums">${fmt(USER.credito_usado)}</div></div>
+      <div style="background:var(--bx-bg);border-radius:8px;padding:14px;text-align:center"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--bx-text-s);font-weight:600;margin-bottom:4px">Disponível</div><div style="font-size:18px;font-weight:700;color:var(--bx-green);font-variant-numeric:tabular-nums">${fmt(disp)}</div></div>
+    </div>
+    <div style="background:var(--bx-bg);border-radius:6px;height:8px;margin-bottom:20px;overflow:hidden"><div style="height:100%;background:${pct>80?'var(--bx-red)':pct>60?'var(--bx-orange)':'var(--bx-green)'};width:${pct}%;border-radius:6px;transition:width .3s"></div></div>
+    <div style="font-size:12px;color:var(--bx-text-s);margin-bottom:20px">${pct}% do limite utilizado</div>
+    <h4 style="font-size:13px;font-weight:600;color:var(--bx-text);margin-bottom:12px">O que posso fazer?</h4>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:#fff;border:1px solid var(--bx-border-l);border-radius:8px;cursor:pointer" onclick="closeModal();solicitarAumentoCredito()">
+        <div style="width:36px;height:36px;border-radius:8px;background:#eef2ff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:var(--bx-navy);flex-shrink:0">↑</div>
+        <div><div style="font-size:13px;font-weight:600;color:var(--bx-text)">Solicitar Aumento de Crédito</div><div style="font-size:11px;color:var(--bx-text-s)">Análise em até 5 dias úteis. Documentação pode ser solicitada.</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:#fff;border:1px solid var(--bx-border-l);border-radius:8px;cursor:pointer" onclick="closeModal();anteciparPagamento()">
+        <div style="width:36px;height:36px;border-radius:8px;background:#ecfdf5;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:var(--bx-green);flex-shrink:0">$</div>
+        <div><div style="font-size:13px;font-weight:600;color:var(--bx-text)">Antecipar Pagamento</div><div style="font-size:11px;color:var(--bx-text-s)">Pague títulos antecipadamente para liberar crédito em 1-2 dias úteis.</div></div>
+      </div>
+    </div>
+    <div style="text-align:right"><button style="padding:8px 16px;background:#fff;border:1px solid var(--bx-border);border-radius:6px;font-size:13px;cursor:pointer;font-family:Outfit" onclick="closeModal()">Fechar</button></div>`);
+}
+
+function anteciparPagamento() {
+  openModal(`
+    <h3 style="font-size:16px;font-weight:600;color:var(--bx-navy);margin-bottom:4px">Antecipar Pagamento</h3>
+    <p style="font-size:12px;color:var(--bx-text-s);margin-bottom:16px">Antecipe títulos para liberar crédito. A compensação leva 1-2 dias úteis após confirmação do pagamento.</p>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px">
+      <thead><tr><th style="padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--bx-text-s);border-bottom:2px solid var(--bx-border-l);font-weight:600">Título</th><th style="padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--bx-text-s);border-bottom:2px solid var(--bx-border-l);font-weight:600">Vencimento</th><th style="padding:8px 10px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--bx-text-s);border-bottom:2px solid var(--bx-border-l);font-weight:600">Valor</th><th style="padding:8px 10px;text-align:center;border-bottom:2px solid var(--bx-border-l)"></th></tr></thead>
+      <tbody>
+        <tr><td style="padding:8px 10px;border-bottom:1px solid var(--bx-border-l)">NF 45.021</td><td style="padding:8px 10px;border-bottom:1px solid var(--bx-border-l)">25/08/2026</td><td style="padding:8px 10px;text-align:right;border-bottom:1px solid var(--bx-border-l);font-weight:600;font-variant-numeric:tabular-nums">R$ 6.230,00</td><td style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--bx-border-l)"><label style="cursor:pointer"><input type="checkbox" checked> Antecipar</label></td></tr>
+        <tr><td style="padding:8px 10px;border-bottom:1px solid var(--bx-border-l)">NF 44.890</td><td style="padding:8px 10px;border-bottom:1px solid var(--bx-border-l)">30/08/2026</td><td style="padding:8px 10px;text-align:right;border-bottom:1px solid var(--bx-border-l);font-weight:600;font-variant-numeric:tabular-nums">R$ 6.220,00</td><td style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--bx-border-l)"><label style="cursor:pointer"><input type="checkbox"> Antecipar</label></td></tr>
+      </tbody>
+    </table>
+    <div style="background:#f0f4f8;border-radius:6px;padding:12px 16px;font-size:12px;color:var(--bx-text-s)">Ao antecipar, será gerado um boleto atualizado com o valor e nova data. O crédito é liberado após compensação bancária.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--bx-border-l)">
+      <button style="padding:8px 16px;background:#fff;border:1px solid var(--bx-border);border-radius:6px;font-size:13px;cursor:pointer;font-family:Outfit" onclick="closeModal()">Cancelar</button>
+      <button style="padding:8px 16px;background:var(--bx-navy);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;font-family:Outfit" onclick="closeModal();toast('Boleto para antecipação gerado. Verifique seu email.','success')">Gerar Boleto</button>
+    </div>`);
+}
+
+// ===================== TOAST =====================
+function toast(msg, type) {
+  type = type || 'success';
+  const d = document.createElement('div');
+  d.className = 'toast toast-' + type;
+  d.textContent = msg;
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 3000);
+}
+
+// ===================== INIT =====================
+document.getElementById('loginPage').style.display = 'flex';
+</script>
+</body>
+</html>
