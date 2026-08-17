@@ -195,7 +195,7 @@ function getUserRepresentanteId() { return PERFIL?.representante_id || null; }
 function renderTopbar(titulo) {
   const role = getUserRole();
   const slug = location.pathname.split('/').pop().replace('.html', '') || 'index';
-  const currentPage = slug + '.html';
+  const currentPage = slug === 'index' ? 'index.html' : slug + (slug.includes('.') ? '' : '.html');
 
   const navItems = [
     { href: 'catalogo.html', label: 'Catalogo', icon: '&#9783;' },
@@ -225,20 +225,39 @@ function renderTopbar(titulo) {
       </div>
       <div class="topbar-right">
         <span class="notif-badge" id="notifBadge" style="display:none" title="Notificacoes pendentes"></span>
-        <span class="user-badge"><strong id="userName"></strong></span>
-        <span class="logout-btn" onclick="doLogout()">Sair</span>
+        <span class="user-badge" id="userBadgeDesktop"><strong id="userName"></strong></span>
+        <span class="logout-btn" id="logoutDesktop" onclick="doLogout()">Sair</span>
+        <button class="hub-menu-btn" id="hubMenuBtn" onclick="toggleMobileMenu()" aria-label="Menu">&#9776;</button>
       </div>
     </div>
-    <nav class="hub-nav">${navHtml}</nav>
+    <nav class="hub-nav" id="hubNav">${navHtml}</nav>
+    <div class="hub-mobile-user" id="hubMobileUser">
+      <span style="font-size:13px;color:#4a5568"><strong>${getUserNome()}</strong></span>
+      <span class="logout-btn" onclick="doLogout()" style="font-size:12px;padding:4px 10px;border:1px solid #c3cfe2;border-radius:6px;cursor:pointer;color:#4a5568">Sair</span>
+    </div>
     <style>
-      .hub-nav{background:#fff;border-bottom:1px solid #d0d8e8;padding:0 24px;display:flex;gap:0;max-width:100%;overflow-x:auto}
+      .hub-nav{background:#fff;border-bottom:1px solid #d0d8e8;padding:0 24px;display:flex;gap:0;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
       .hub-nav-link{padding:10px 16px;font-family:Outfit,sans-serif;font-size:13px;font-weight:500;color:#4a5568;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s,border-color .15s}
       .hub-nav-link:hover{color:#1d327b;border-bottom-color:#25bbee}
       .hub-nav-active{color:#1d327b;border-bottom-color:#1d327b;font-weight:600}
+      .hub-menu-btn{display:none;background:none;border:1px solid rgba(255,255,255,.3);color:#fff;font-size:20px;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:Outfit;line-height:1}
+      .hub-mobile-user{display:none}
+      @media(max-width:768px){
+        .topbar h1{font-size:15px}
+        #userBadgeDesktop,#logoutDesktop{display:none}
+        .hub-menu-btn{display:block}
+        .hub-nav{display:none;flex-direction:column;padding:0;border-bottom:1px solid #d0d8e8}
+        .hub-nav.open{display:flex}
+        .hub-nav-link{padding:12px 20px;border-bottom:none;border-left:3px solid transparent;font-size:14px}
+        .hub-nav-active{border-left-color:#1d327b;border-bottom-color:transparent;background:#f0f4f8}
+        .hub-mobile-user{display:none;padding:10px 20px;background:#f7fafc;border-bottom:1px solid #d0d8e8;justify-content:space-between;align-items:center}
+        .hub-mobile-user.open{display:flex}
+      }
     </style>`;
 
   document.body.insertAdjacentHTML('afterbegin', html);
-  document.getElementById('userName').textContent = getUserNome();
+  const nameEl = document.getElementById('userName');
+  if (nameEl) nameEl.textContent = getUserNome();
   loadNotifCount();
 }
 
@@ -271,6 +290,13 @@ function openModal(html) {
 
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('show');
+}
+
+// === MOBILE MENU ===
+
+function toggleMobileMenu() {
+  document.getElementById('hubNav').classList.toggle('open');
+  document.getElementById('hubMobileUser').classList.toggle('open');
 }
 
 // === UTILS ===

@@ -19,52 +19,124 @@ body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
 .toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-family:Outfit;font-size:13px;font-weight:500;z-index:2000;animation:slideIn .3s;box-shadow:0 4px 12px rgba(0,0,0,.15)}
 .toast-success{background:#16a34a}.toast-error{background:#dc2626}
 @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* === PAGE LAYOUT === */
+.page-wrap{max-width:1400px;margin:0 auto;padding:16px}
+
+/* === SEARCH === */
+.search-section{margin-bottom:16px}
+.search-input{width:100%;padding:10px 14px 10px 38px;border:1px solid #c3cfe2;border-radius:8px;font-family:Outfit;font-size:14px;outline:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23a0aec0' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.656a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") 12px center no-repeat}
+.search-input:focus{border-color:#25bbee}
+
+/* === CATEGORY CHIPS === */
+.cat-chips{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;margin-bottom:8px;scrollbar-width:none}
+.cat-chips::-webkit-scrollbar{display:none}
+.cat-chip{padding:7px 14px;border-radius:20px;border:1px solid #d0d8e8;background:#fff;font-family:Outfit;font-size:12px;font-weight:500;color:#4a5568;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0}
+.cat-chip:hover{border-color:#25bbee;color:#1d327b}
+.cat-chip.active{background:#1d327b;color:#fff;border-color:#1d327b}
+.cat-chip .chip-count{font-size:10px;color:#a0aec0;margin-left:4px}
+.cat-chip.active .chip-count{color:rgba(255,255,255,.7)}
+.sub-chips{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px;margin-bottom:12px;scrollbar-width:none}
+.sub-chips::-webkit-scrollbar{display:none}
+.sub-chip{padding:5px 12px;border-radius:16px;border:1px solid #e2e8f0;background:#f7fafc;font-family:Outfit;font-size:11px;font-weight:500;color:#718096;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0}
+.sub-chip:hover{border-color:#25bbee;color:#1d327b}
+.sub-chip.active{background:#25bbee;color:#fff;border-color:#25bbee}
+
+/* === RESULTS BAR === */
+.results-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:12px;color:#718096}
+.results-count{font-weight:600}
+
+/* === PRODUCT GRID === */
+.produto-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.produto-card{background:#fff;border:1px solid #d0d8e8;border-radius:10px;overflow:hidden;cursor:pointer;transition:box-shadow .2s,transform .15s}
+.produto-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08)}
+.produto-card:active{transform:scale(.98)}
+.produto-img{aspect-ratio:1;background:#f7fafc;display:flex;align-items:center;justify-content:center;color:#a0aec0;font-size:11px;position:relative;overflow:hidden}
+.produto-img img{width:100%;height:100%;object-fit:contain}
+.produto-info{padding:10px 12px 12px}
+.produto-sku{font-size:10px;color:#718096;text-transform:uppercase;letter-spacing:.5px}
+.produto-nome{font-size:13px;font-weight:600;margin:3px 0 6px;color:#1a202c;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.produto-cat{font-size:10px;color:#a0aec0}
+.promo-tag{position:absolute;top:8px;right:8px;background:#e30613;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px}
+.empty-state{text-align:center;padding:60px 20px;color:#718096;grid-column:1/-1}
+.empty-state h3{font-size:16px;margin-bottom:8px;color:#4a5568}
+
+/* === PDP OVERLAY === */
+.pdp-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:flex-end;justify-content:center}
+.pdp-overlay.show{display:flex}
+.pdp-panel{background:#fff;width:100%;max-height:92vh;overflow-y:auto;border-radius:16px 16px 0 0;animation:slideUp .3s}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.pdp-header{position:sticky;top:0;background:#fff;padding:16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e2e8f0;z-index:2}
+.pdp-close{background:none;border:none;font-size:24px;cursor:pointer;color:#718096;padding:4px 8px;line-height:1}
+.pdp-close:hover{color:#1a202c}
+.pdp-img{aspect-ratio:1;max-height:300px;background:#f7fafc;display:flex;align-items:center;justify-content:center;color:#a0aec0;font-size:13px}
+.pdp-img img{width:100%;height:100%;object-fit:contain}
+.pdp-body{padding:16px}
+.pdp-sku{font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px}
+.pdp-nome{font-size:18px;font-weight:700;color:#1d327b;margin:4px 0 8px}
+.pdp-categoria{font-size:12px;color:#718096;margin-bottom:16px}
+.pdp-section{margin-bottom:16px}
+.pdp-section-title{font-size:11px;font-weight:600;color:#4a5568;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.pdp-section p,.pdp-section li{font-size:13px;color:#4a5568;line-height:1.6}
+.pdp-section ul{padding-left:18px}
+.pdp-preco-box{padding:14px;background:#f0f4f8;border-radius:8px;margin-bottom:16px}
+.pdp-preco-label{font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px}
+.pdp-preco-valor{font-size:24px;font-weight:700;color:#1d327b}
+.pdp-preco-ipi{font-size:11px;color:#718096;margin-top:2px}
+.pdp-actions{display:flex;gap:8px;padding:16px;border-top:1px solid #e2e8f0;position:sticky;bottom:0;background:#fff}
+.btn-add-cart{flex:1;padding:12px;border-radius:8px;border:none;background:#1d327b;color:#fff;font-family:Outfit;font-size:14px;font-weight:600;cursor:pointer}
+.btn-add-cart:hover{background:#162666}
+.btn-close-pdp{padding:12px 20px;border-radius:8px;border:1px solid #c3cfe2;background:#fff;color:#4a5568;font-family:Outfit;font-size:14px;cursor:pointer}
+
+/* === MODAL (fallback) === */
 .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
 .modal-overlay.show{display:flex}
 .modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
 
-/* === CATALOGO === */
-.page-wrap{max-width:1400px;margin:0 auto;padding:20px 24px}
-.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-.page-title{font-size:18px;font-weight:700;color:#1d327b}
-.search-bar{display:flex;gap:12px;align-items:center}
-.search-bar input{padding:8px 14px;border:1px solid #c3cfe2;border-radius:6px;font-family:Outfit;font-size:13px;width:260px;outline:none}
-.search-bar input:focus{border-color:#25bbee}
-.search-bar select{padding:8px 12px;border:1px solid #c3cfe2;border-radius:6px;font-family:Outfit;font-size:13px;outline:none}
-.produto-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
-.produto-card{background:#fff;border:1px solid #d0d8e8;border-radius:10px;overflow:hidden;cursor:pointer;transition:box-shadow .2s}
-.produto-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08)}
-.produto-img{height:180px;background:#f7fafc;display:flex;align-items:center;justify-content:center;color:#a0aec0;font-size:13px}
-.produto-img img{width:100%;height:100%;object-fit:contain}
-.produto-info{padding:14px}
-.produto-sku{font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px}
-.produto-nome{font-size:14px;font-weight:600;margin:4px 0 8px;color:#1a202c}
-.produto-preco{font-size:16px;font-weight:700;color:#1d327b}
-.produto-estoque{font-size:11px;margin-top:6px}
-.estoque-disponivel{color:#16a34a}
-.estoque-baixo{color:#e97316}
-.estoque-sem{color:#dc2626}
-.promo-tag{display:inline-block;background:#e30613;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;margin-left:6px}
-.empty-state{text-align:center;padding:60px 20px;color:#718096}
-.empty-state h3{font-size:16px;margin-bottom:8px;color:#4a5568}
+/* === DESKTOP === */
+@media(min-width:769px){
+  .page-wrap{padding:20px 24px}
+  .search-section{display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .search-input{max-width:320px}
+  .produto-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+  .produto-img{aspect-ratio:4/3}
+  .pdp-overlay{align-items:center}
+  .pdp-panel{max-width:680px;max-height:85vh;border-radius:12px;animation:none}
+  .pdp-img{max-height:360px}
+}
+@media(min-width:1024px){
+  .produto-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+}
 </style>
 </head>
 <body>
 
+<!-- PDP Overlay -->
+<div class="pdp-overlay" id="pdpOverlay" onclick="if(event.target===this)closePDP()">
+  <div class="pdp-panel" id="pdpPanel"></div>
+</div>
+
+<!-- Modal fallback -->
 <div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modalContent"></div>
 </div>
 
 <div class="page-wrap">
-  <div class="page-header">
-    <h2 class="page-title">Catalogo de Produtos</h2>
-    <div class="search-bar">
-      <select id="filtroCategoria" onchange="loadProdutos()">
-        <option value="">Todas as categorias</option>
-      </select>
-      <input id="buscaProduto" type="text" placeholder="Buscar produto..." oninput="debounceBusca()">
-    </div>
+  <!-- Search -->
+  <div class="search-section">
+    <input class="search-input" id="buscaProduto" type="text" placeholder="Buscar por nome ou codigo..." oninput="debounceBusca()">
   </div>
+
+  <!-- Category chips -->
+  <div class="cat-chips" id="catChips"></div>
+  <div class="sub-chips" id="subChips"></div>
+
+  <!-- Results -->
+  <div class="results-bar">
+    <span class="results-count" id="resultsCount"></span>
+  </div>
+
+  <!-- Grid -->
   <div class="produto-grid" id="produtoGrid">
     <div class="empty-state"><h3>Carregando catalogo...</h3></div>
   </div>
@@ -73,6 +145,10 @@ body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
 <script src="hub.js"></script>
 <script>
 if (!requireAuth()) throw 'auth';
+
+let allCats = [];
+let selectedPai = '';
+let selectedSub = '';
 
 (async () => {
   await loadPerfil();
@@ -83,107 +159,165 @@ if (!requireAuth()) throw 'auth';
 
 async function loadCategorias() {
   try {
-    const cats = await sb('/hub_categorias?ativo=eq.true&order=ordem.asc,nome.asc&select=id,nome,slug');
-    const sel = document.getElementById('filtroCategoria');
-    cats.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.id;
-      opt.textContent = c.nome;
-      sel.appendChild(opt);
-    });
+    allCats = await sb('/hub_categorias?ativo=eq.true&order=ordem.asc,nome.asc&select=id,nome,slug,categoria_pai_id');
+    renderCatChips();
   } catch {}
+}
+
+function renderCatChips() {
+  const pais = allCats.filter(c => !c.categoria_pai_id);
+  const wrap = document.getElementById('catChips');
+  wrap.innerHTML = `<div class="cat-chip${!selectedPai ? ' active' : ''}" onclick="selectPai('')">Todos</div>` +
+    pais.map(p => `<div class="cat-chip${selectedPai === p.id ? ' active' : ''}" onclick="selectPai('${p.id}')">${p.nome}</div>`).join('');
+  renderSubChips();
+}
+
+function renderSubChips() {
+  const wrap = document.getElementById('subChips');
+  if (!selectedPai) { wrap.innerHTML = ''; return; }
+  const subs = allCats.filter(c => c.categoria_pai_id === selectedPai);
+  if (!subs.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<div class="sub-chip${!selectedSub ? ' active' : ''}" onclick="selectSub('')">Todas</div>` +
+    subs.map(s => `<div class="sub-chip${selectedSub === s.id ? ' active' : ''}" onclick="selectSub('${s.id}')">${s.nome}</div>`).join('');
+}
+
+function selectPai(id) {
+  selectedPai = id;
+  selectedSub = '';
+  renderCatChips();
+  loadProdutos();
+}
+
+function selectSub(id) {
+  selectedSub = id;
+  renderSubChips();
+  loadProdutos();
 }
 
 async function loadProdutos() {
   const grid = document.getElementById('produtoGrid');
-  const cat = document.getElementById('filtroCategoria').value;
   const busca = document.getElementById('buscaProduto').value.trim();
 
-  let url = '/hub_v_catalogo?select=*&order=ordem_exibicao.asc,nome.asc';
-  if (cat) url += '&categoria_id=eq.' + cat;
-  if (busca) url += '&nome=ilike.*' + encodeURIComponent(busca) + '*';
+  let url = '/hub_v_catalogo?ativo=eq.true&select=produto_id,sku,nome,descricao,categoria_nome,categoria_id,categoria_pai_id,estoque_disponivel,status_estoque,backorder_disponivel,foto_paths,destaque,ordem_exibicao&order=ordem_exibicao.asc,nome.asc';
+
+  if (selectedSub) {
+    url += '&categoria_id=eq.' + selectedSub;
+  } else if (selectedPai) {
+    const subIds = allCats.filter(c => c.categoria_pai_id === selectedPai).map(c => c.id);
+    if (subIds.length) {
+      url += '&categoria_id=in.(' + subIds.join(',') + ')';
+    }
+  }
+
+  if (busca) {
+    url += '&or=(nome.ilike.*' + encodeURIComponent(busca) + '*,sku.ilike.*' + encodeURIComponent(busca) + '*)';
+  }
 
   try {
     const prods = await sb(url);
+    document.getElementById('resultsCount').textContent = prods.length + ' produto' + (prods.length !== 1 ? 's' : '');
+
     if (!prods.length) {
       grid.innerHTML = '<div class="empty-state"><h3>Nenhum produto encontrado</h3><p>Tente outra busca ou categoria.</p></div>';
       return;
     }
-    grid.innerHTML = prods.map(p => `
+
+    grid.innerHTML = prods.map(p => {
+      const fotoUrl = p.foto_paths ? SB_URL + '/storage/v1/object/public/hub-produto-anexos/' + p.foto_paths.split(',')[0] : '';
+      return `
       <div class="produto-card" onclick="openPDP('${p.produto_id}')">
         <div class="produto-img">
-          ${p.foto_paths ? `<img src="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${p.foto_paths.split(',')[0]}" alt="${p.nome}">` : 'Sem foto'}
+          ${fotoUrl ? `<img src="${fotoUrl}" alt="${esc(p.nome)}" loading="lazy">` : '<span>Sem foto</span>'}
         </div>
         <div class="produto-info">
-          <div class="produto-sku">${p.sku}</div>
-          <div class="produto-nome">${p.nome}</div>
-          <div class="produto-estoque ${p.status_estoque === 'disponivel' ? 'estoque-disponivel' : p.status_estoque === 'estoque_baixo' ? 'estoque-baixo' : 'estoque-sem'}">
-            ${p.status_estoque === 'disponivel' ? p.estoque_disponivel + ' em estoque' : p.status_estoque === 'estoque_baixo' ? 'Estoque baixo: ' + p.estoque_disponivel : p.backorder_disponivel ? 'Sob encomenda' : 'Indisponivel'}
-          </div>
+          <div class="produto-sku">${esc(p.sku)}</div>
+          <div class="produto-nome">${esc(p.nome)}</div>
+          <div class="produto-cat">${esc(p.categoria_nome || '')}</div>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
   } catch (e) {
-    grid.innerHTML = '<div class="empty-state"><h3>Erro ao carregar catalogo</h3><p>' + e.message + '</p></div>';
+    grid.innerHTML = '<div class="empty-state"><h3>Erro ao carregar catalogo</h3><p>' + esc(e.message) + '</p></div>';
   }
 }
+
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+const DOC_LABELS = {ficha_tecnica:'Ficha Tecnica',certificado:'Certificado',fispq:'FISPQ',manual:'Manual',catalogo:'Catalogo'};
+function docLabel(tipo) { return DOC_LABELS[tipo] || tipo; }
 
 const debounceBusca = debounce(() => loadProdutos(), 400);
 
 async function openPDP(produtoId) {
+  const panel = document.getElementById('pdpPanel');
+  const overlay = document.getElementById('pdpOverlay');
+
+  panel.innerHTML = '<div style="padding:40px;text-align:center;color:#718096">Carregando...</div>';
+  overlay.classList.add('show');
+  document.body.style.overflow = 'hidden';
+
   try {
     const [prod] = await sb('/hub_v_catalogo?produto_id=eq.' + produtoId);
-    if (!prod) return;
+    if (!prod) { closePDP(); return; }
 
     const anexos = await sb('/hub_produto_anexos?produto_id=eq.' + produtoId + '&order=tipo.asc,ordem.asc&select=*');
     const fotos = anexos.filter(a => a.tipo === 'foto');
     const docs = anexos.filter(a => a.tipo !== 'foto');
 
     let precoHtml = '';
-    if (getUserTipo() === 'cliente' || getUserTipo() === 'representante') {
+    if (getUserTipo() === 'cliente' && getUserClienteId()) {
       try {
-        const clienteId = getUserTipo() === 'cliente' ? getUserClienteId() : null;
-        if (clienteId) {
-          const preco = await sbRpc('hub_fn_calcular_preco', { p_cliente_id: clienteId, p_produto_id: produtoId, p_quantidade: 1 });
-          if (preco.ok) {
-            precoHtml = `<div style="margin:16px 0;padding:12px;background:#f0f4f8;border-radius:8px">
-              <div style="font-size:12px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Seu preco</div>
-              <div style="font-size:22px;font-weight:700;color:#1d327b">${fmtMoeda(preco.preco_final)}${preco.em_promocao ? '<span class="promo-tag">PROMO</span>' : ''}</div>
-              ${preco.ipi > 0 ? '<div style="font-size:11px;color:#718096">IPI: ' + preco.ipi + '%</div>' : ''}
-            </div>`;
-          }
+        const preco = await sbRpc('hub_fn_calcular_preco', { p_cliente_id: getUserClienteId(), p_produto_id: produtoId, p_quantidade: 1 });
+        if (preco.ok) {
+          precoHtml = `<div class="pdp-preco-box">
+            <div class="pdp-preco-label">Seu preco</div>
+            <div class="pdp-preco-valor">${fmtMoeda(preco.preco_final)}${preco.em_promocao ? ' <span style="background:#e30613;color:#fff;font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600">PROMO</span>' : ''}</div>
+            ${preco.ipi > 0 ? '<div class="pdp-preco-ipi">IPI: ' + preco.ipi + '%</div>' : ''}
+          </div>`;
         }
       } catch {}
     }
 
-    openModal(`
-      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+    const fichaHtml = prod.ficha_tecnica ? Object.entries(prod.ficha_tecnica).map(([k, v]) =>
+      `<tr><td style="font-size:12px;font-weight:500;color:#718096;padding:6px 12px 6px 0;vertical-align:top;white-space:nowrap">${esc(k)}</td><td style="font-size:13px;color:#1a202c;padding:6px 0">${esc(String(v))}</td></tr>`
+    ).join('') : '';
+
+    panel.innerHTML = `
+      <div class="pdp-header">
         <div>
-          <div style="font-size:12px;color:#718096;text-transform:uppercase;letter-spacing:.5px">${prod.sku}</div>
-          <h3 style="font-size:20px;color:#1d327b;margin:4px 0">${prod.nome}</h3>
-          <div style="font-size:13px;color:#718096">${prod.categoria_nome || 'Sem categoria'}</div>
+          <div class="pdp-sku">${esc(prod.sku)}</div>
+          <div style="font-size:15px;font-weight:700;color:#1d327b">${esc(prod.nome)}</div>
         </div>
-        <span style="cursor:pointer;font-size:20px;color:#718096" onclick="closeModal()">&times;</span>
+        <button class="pdp-close" onclick="closePDP()">&times;</button>
       </div>
-      ${fotos.length ? `<div style="height:240px;background:#f7fafc;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;overflow:hidden">
-        <img src="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${fotos[0].storage_path}" style="max-width:100%;max-height:100%;object-fit:contain">
-      </div>` : ''}
-      ${precoHtml}
-      ${prod.descricao ? `<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Descricao</div><div style="font-size:13px;color:#4a5568;line-height:1.5">${prod.descricao}</div></div>` : ''}
-      ${prod.o_que_acompanha?.length ? `<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">O que acompanha</div><ul style="font-size:13px;color:#4a5568;padding-left:18px">${prod.o_que_acompanha.map(i => '<li>' + i + '</li>').join('')}</ul></div>` : ''}
-      ${docs.length ? `<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Documentos</div>${docs.map(d => `<a href="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${d.storage_path}" target="_blank" style="display:block;font-size:13px;color:#1d327b;text-decoration:none;padding:6px 0;border-bottom:1px solid #e2e8f0">${d.nome || d.tipo}</a>`).join('')}</div>` : ''}
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-        <button class="btn btn-outline" onclick="closeModal()" style="padding:8px 16px;border-radius:8px;border:1px solid #c3cfe2;background:#fff;color:#4a5568;font-family:Outfit;font-size:13px;cursor:pointer">Fechar</button>
-        ${getUserTipo() === 'cliente' ? `<button class="btn btn-primary" onclick="addToCart('${produtoId}')" style="padding:8px 16px;border-radius:8px;border:1px solid #1d327b;background:#1d327b;color:#fff;font-family:Outfit;font-size:13px;cursor:pointer">Adicionar ao pedido</button>` : ''}
+      <div class="pdp-img">
+        ${fotos.length ? `<img src="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${fotos[0].storage_path}" alt="${esc(prod.nome)}">` : '<span>Sem foto</span>'}
       </div>
-    `);
+      <div class="pdp-body">
+        <div class="pdp-categoria">${esc(prod.categoria_nome || '')}</div>
+        ${precoHtml}
+        ${prod.descricao ? `<div class="pdp-section"><div class="pdp-section-title">Descricao</div><p>${esc(prod.descricao)}</p></div>` : ''}
+        ${fichaHtml ? `<div class="pdp-section"><div class="pdp-section-title">Ficha Tecnica</div><table style="width:100%;border-collapse:collapse">${fichaHtml}</table></div>` : ''}
+        ${prod.o_que_acompanha?.length ? `<div class="pdp-section"><div class="pdp-section-title">O que acompanha</div><ul>${prod.o_que_acompanha.map(i => '<li>' + esc(i) + '</li>').join('')}</ul></div>` : ''}
+        ${docs.length ? `<div class="pdp-section"><div class="pdp-section-title">Documentos</div>${docs.map(d => `<a href="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${d.storage_path}" target="_blank" style="display:block;font-size:13px;color:#1d327b;text-decoration:none;padding:8px 0;border-bottom:1px solid #e2e8f0">${esc(docLabel(d.tipo))}</a>`).join('')}</div>` : ''}
+      </div>
+      <div class="pdp-actions">
+        <button class="btn-close-pdp" onclick="closePDP()">Fechar</button>
+        ${getUserTipo() === 'cliente' ? `<button class="btn-add-cart" onclick="addToCart('${produtoId}')">Adicionar ao pedido</button>` : ''}
+      </div>`;
   } catch (e) {
     toast('Erro ao abrir produto', 'error');
+    closePDP();
   }
 }
 
+function closePDP() {
+  document.getElementById('pdpOverlay').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
 function addToCart(produtoId) {
-  closeModal();
+  closePDP();
   window.location.href = 'pedidos.html?add=' + produtoId;
 }
 </script>
