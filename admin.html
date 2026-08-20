@@ -466,9 +466,18 @@ function buildOnbActions(o) {
   if (etapa === 'ativacao') {
     if (['admin'].includes(role)) {
       html = `
+        <div style="margin-top:16px;padding:14px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px">
+          <div style="font-size:13px;color:#166534;margin-bottom:8px"><strong>Etapa final.</strong> Ao ativar, o sistema ira:</div>
+          <ul style="font-size:12px;color:#166534;margin:0 0 0 16px;line-height:1.8">
+            <li>Criar cadastro no ZEN ERP (Person, endereco, contatos)</li>
+            <li>Definir limite de credito no ZEN (R$ ${o.limite_aprovado ? o.limite_aprovado.toLocaleString('pt-BR',{minimumFractionDigits:2}) : '0'})</li>
+            <li>Criar usuario no Hub (login + senha temporaria)</li>
+            <li>Gerar credenciais de acesso para o revendedor</li>
+          </ul>
+        </div>
         <div class="action-bar">
-          <span style="font-size:12px;color:#718096;flex:1">Criar cliente no ZEN, gerar usuario e enviar credenciais</span>
-          <button class="btn btn-success btn-sm" onclick="ativarCliente('${o.id}')">Ativar Cliente</button>
+          <span style="font-size:12px;color:#718096;flex:1">Email do cliente: <strong>${o.contato_email || '—'}</strong></span>
+          <button class="btn btn-success btn-sm" onclick="confirmarAtivacao('${o.id}')">Ativar Cliente</button>
         </div>`;
     }
   }
@@ -528,8 +537,97 @@ async function aprovarCredito(id) {
   }
 }
 
+function confirmarAtivacao(id) {
+  const o = allOnboardings.find(x => x.id === id);
+  if (!o) return;
+  openModal(`
+    <h3 style="font-size:18px;color:#1d327b;margin-bottom:16px">Confirmar Ativacao</h3>
+    <div style="padding:14px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;margin-bottom:16px">
+      <div style="font-size:13px;color:#92400e"><strong>Atencao:</strong> esta acao nao pode ser desfeita. Sera criado um usuario de acesso ao Hub e um cadastro no ZEN ERP.</div>
+    </div>
+    <div style="font-size:14px;margin-bottom:16px">
+      <div style="margin-bottom:6px"><strong>${o.razao_social}</strong></div>
+      <div style="font-size:13px;color:#718096">CNPJ: ${fmtCnpj(o.cnpj)} | Email: ${o.contato_email}</div>
+      <div style="font-size:13px;color:#718096">Limite aprovado: <strong style="color:#16a34a">${fmtMoeda(o.limite_aprovado)}</strong></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-success" id="btnAtivar" onclick="ativarCliente('${o.id}')">Confirmar e Ativar</button>
+    </div>
+  `);
+}
+
 async function ativarCliente(id) {
-  toast('Ativacao em desenvolvimento — requer integracao ZEN + criacao de usuario Auth', 'error');
+  const btn = document.getElementById('btnAtivar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Ativando...'; }
+
+  try {
+    const r = await fetch('/api/ativar', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SESSION.access_token
+      },
+      body: JSON.stringify({ onboarding_id: id })
+    });
+    const data = await r.json();
+
+    if (!r.ok || !data.ok) {
+      toast(data.error || 'Erro na ativacao', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirmar e Ativar'; }
+      return;
+    }
+
+    openModal(`
+      <h3 style="font-size:18px;color:#16a34a;margin-bottom:16px">Cliente Ativado</h3>
+
+      <div style="padding:16px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;margin-bottom:16px">
+        <div style="font-size:14px;font-weight:700;color:#166534;margin-bottom:12px">${data.razao_social}</div>
+        <div style="display:grid;gap:8px">
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:#718096">Login</span>
+            <strong style="color:#1a202c">${data.email}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:#718096">Senha temporaria</span>
+            <strong style="color:#e30613;font-family:monospace;font-size:14px">${data.senha_temp}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:#718096">Limite de credito</span>
+            <strong style="color:#16a34a">${fmtMoeda(data.limite)}</strong>
+          </div>
+          ${data.erp_cliente_id ? `<div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:#718096">ID no ZEN</span>
+            <strong style="color:#1a202c">${data.erp_cliente_id}</strong>
+          </div>` : ''}
+        </div>
+      </div>
+
+      ${data.zen_status !== 'ok' ? `<div style="padding:10px 14px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;margin-bottom:16px;font-size:12px;color:#92400e">
+        <strong>ZEN:</strong> ${data.zen_status === 'nao_configurado' ? 'Credenciais ZEN nao configuradas no servidor. Cadastre manualmente no ZEN.' : data.zen_status}
+      </div>` : ''}
+
+      <div style="padding:10px 14px;background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;margin-bottom:16px;font-size:12px;color:#1e40af">
+        <strong>Proximo passo:</strong> Envie as credenciais acima para o cliente por email. O cliente devera trocar a senha no primeiro acesso.
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-outline btn-sm" onclick="copiarCredenciais('${data.email}','${data.senha_temp}','${data.limite}','${data.razao_social}')">Copiar credenciais</button>
+        <button class="btn btn-primary" onclick="closeModal()">Fechar</button>
+      </div>
+    `);
+
+    await loadOnboardings();
+
+  } catch (e) {
+    toast('Erro de conexao: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar e Ativar'; }
+  }
+}
+
+function copiarCredenciais(email, senha, limite, razao) {
+  const texto = `Boxer Hub — Credenciais de Acesso\n\nEmpresa: ${razao}\nLogin: ${email}\nSenha temporaria: ${senha}\nLimite de credito: R$ ${parseFloat(limite||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}\n\nAcesse: https://app.boxersoldas.com.br/hub\nRecomendamos trocar a senha no primeiro acesso.`;
+  navigator.clipboard.writeText(texto).then(() => toast('Credenciais copiadas!')).catch(() => toast('Erro ao copiar', 'error'));
 }
 </script>
 </body>
