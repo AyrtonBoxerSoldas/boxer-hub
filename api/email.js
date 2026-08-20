@@ -1,5 +1,5 @@
 const RESEND_URL = 'https://api.resend.com/emails';
-const FROM_DEFAULT = 'Boxer Hub <andre.coelho@boxersoldas.com.br>';
+const FROM_DEFAULT = 'Boxer Hub <noreply@boxersoldas.com.br>';
 const HUB_URL = 'https://hub.boxersoldas.com.br';
 
 module.exports = async function handler(req, res) {

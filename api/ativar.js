@@ -264,7 +264,7 @@ module.exports = async function handler(req, res) {
             'Authorization': 'Bearer ' + RESEND_KEY
           },
           body: JSON.stringify({
-            from: 'Boxer Hub <andre.coelho@boxersoldas.com.br>',
+            from: 'Boxer Hub <noreply@boxersoldas.com.br>',
             to: [emailCliente],
             subject: 'Sua conta no Boxer Hub foi ativada!',
             html: buildActivationEmail(onb.razao_social, emailCliente, senhaTemp, onb.limite_aprovado)
