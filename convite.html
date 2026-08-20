@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Convite — Boxer Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:linear-gradient(135deg,#1d327b 0%,#0f1d4a 100%);color:#1a202c;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#fff;border-radius:10px;padding:40px;width:100%;max-width:460px;box-shadow:0 24px 64px rgba(0,0,0,.25)}
+.logo{text-align:center;margin-bottom:8px}
+.card h1{font-size:20px;color:#1d327b;font-weight:700;text-align:center;margin:12px 0 4px}
+.card .subtitle{font-size:13px;color:#718096;text-align:center;margin-bottom:24px}
+.empresa-box{background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:14px;margin-bottom:24px}
+.empresa-box .nome{font-size:16px;font-weight:700;color:#166534}
+.empresa-box .info{font-size:12px;color:#4a5568;margin-top:4px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:11px;font-weight:600;color:#718096;margin-bottom:6px;text-transform:uppercase;letter-spacing:.8px}
+.field input{width:100%;padding:11px 14px;border:1.5px solid #d0d8e8;border-radius:8px;font-size:14px;font-family:'Outfit',sans-serif;outline:none;transition:border-color .2s}
+.field input:focus{border-color:#25bbee;box-shadow:0 0 0 3px rgba(37,187,238,.12)}
+.field input.err{border-color:#e30613}
+.field .hint{font-size:11px;color:#718096;margin-top:4px}
+.btn{width:100%;padding:13px;background:#1d327b;color:#fff;border:none;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;transition:background .2s}
+.btn:hover{background:#162666}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.err-msg{background:#fee2e2;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;border:1px solid #fecaca;display:none}
+.success-box{text-align:center;padding:20px 0}
+.success-icon{width:56px;height:56px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:24px;color:#16a34a}
+.loading{text-align:center;padding:40px 0;color:#718096}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">
+    <svg width="48" height="48" viewBox="0 0 200 200"><rect x="10" y="10" width="180" height="180" rx="30" fill="#e30613"/><line x1="30" y1="30" x2="82" y2="95" stroke="#fff" stroke-width="10" stroke-linecap="round"/><polygon points="100,38 108,80 145,55 118,88 158,92 120,105 148,138 108,118 100,162 92,118 52,138 80,105 42,92 82,88 55,55 92,80" fill="#fff"/></svg>
+  </div>
+  <h1>Boxer Hub</h1>
+  <p class="subtitle">Ativacao de Conta de Revendedor</p>
+
+  <div id="loadingState" class="loading">Validando convite...</div>
+
+  <div id="invalidState" class="hidden" style="text-align:center;padding:20px 0">
+    <div style="font-size:40px;margin-bottom:12px">&#10007;</div>
+    <h2 style="font-size:18px;color:#991b1b;margin-bottom:8px" id="invalidTitle">Convite invalido</h2>
+    <p style="font-size:13px;color:#718096" id="invalidMsg"></p>
+    <a href="index.html" style="display:inline-block;margin-top:16px;color:#25bbee;font-size:13px;text-decoration:none;font-weight:500">Ir para login</a>
+  </div>
+
+  <div id="formState" class="hidden">
+    <div class="empresa-box">
+      <div class="nome" id="cEmpresa"></div>
+      <div class="info" id="cInfo"></div>
+    </div>
+
+    <div class="err-msg" id="formErr"></div>
+
+    <div class="field">
+      <label>Email de acesso</label>
+      <input type="email" id="cEmail" readonly style="background:#f7fafc;color:#718096">
+    </div>
+    <div class="field">
+      <label>Defina sua senha</label>
+      <input type="password" id="cSenha" placeholder="Minimo 6 caracteres">
+      <div class="hint">Use letras, numeros e caracteres especiais</div>
+    </div>
+    <div class="field">
+      <label>Confirme a senha</label>
+      <input type="password" id="cSenhaConf" placeholder="Repita a senha">
+    </div>
+    <button class="btn" id="btnAceitar" onclick="aceitarConvite()">Criar minha conta</button>
+  </div>
+
+  <div id="successState" class="hidden">
+    <div class="success-box">
+      <div class="success-icon">&#10003;</div>
+      <h2 style="font-size:18px;color:#1a202c;margin-bottom:8px">Conta criada!</h2>
+      <p style="font-size:13px;color:#718096;margin-bottom:20px">Sua conta no Boxer Hub foi ativada. Use seu email e a senha que voce definiu para acessar.</p>
+      <a href="index.html" class="btn" style="display:inline-block;text-decoration:none;max-width:200px;margin:0 auto">Ir para o Login</a>
+    </div>
+  </div>
+</div>
+
+<script src="hub.js"></script>
+<script>
+let conviteData = null;
+
+(async function init() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+
+  if (!token) {
+    showInvalid('Link incompleto', 'O link de convite esta incompleto. Verifique se copiou corretamente.');
+    return;
+  }
+
+  try {
+    const result = await sbRpc('hub_fn_buscar_convite', { p_token: token });
+
+    if (!result.ok) {
+      showInvalid('Convite invalido', result.erro);
+      return;
+    }
+
+    conviteData = { token, ...result };
+    document.getElementById('cEmpresa').textContent = result.cliente.razao_social;
+    document.getElementById('cInfo').textContent = 'CNPJ: ' + fmtCnpj(result.cliente.cnpj) + (result.cliente.limite_credito ? ' | Limite: ' + fmtMoeda(result.cliente.limite_credito) : '');
+    document.getElementById('cEmail').value = result.email;
+
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('formState').classList.remove('hidden');
+
+    document.getElementById('cSenha').focus();
+  } catch (e) {
+    showInvalid('Erro de conexao', 'Nao foi possivel validar o convite. Tente novamente.');
+  }
+})();
+
+function showInvalid(title, msg) {
+  document.getElementById('loadingState').classList.add('hidden');
+  document.getElementById('invalidTitle').textContent = title;
+  document.getElementById('invalidMsg').textContent = msg;
+  document.getElementById('invalidState').classList.remove('hidden');
+}
+
+async function aceitarConvite() {
+  const senha = document.getElementById('cSenha').value;
+  const conf = document.getElementById('cSenhaConf').value;
+  const errEl = document.getElementById('formErr');
+  const btn = document.getElementById('btnAceitar');
+
+  errEl.style.display = 'none';
+  document.getElementById('cSenha').classList.remove('err');
+  document.getElementById('cSenhaConf').classList.remove('err');
+
+  if (!senha || senha.length < 6) {
+    errEl.textContent = 'A senha deve ter pelo menos 6 caracteres.';
+    errEl.style.display = 'block';
+    document.getElementById('cSenha').classList.add('err');
+    return;
+  }
+
+  if (senha !== conf) {
+    errEl.textContent = 'As senhas nao conferem.';
+    errEl.style.display = 'block';
+    document.getElementById('cSenhaConf').classList.add('err');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Criando conta...';
+
+  try {
+    const r = await fetch('/api/convite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: conviteData.token, senha })
+    });
+    const data = await r.json();
+
+    if (!r.ok || !data.ok) {
+      errEl.textContent = data.error || 'Erro ao criar conta.';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Criar minha conta';
+      return;
+    }
+
+    document.getElementById('formState').classList.add('hidden');
+    document.getElementById('successState').classList.remove('hidden');
+
+  } catch (e) {
+    errEl.textContent = 'Erro de conexao. Tente novamente.';
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Criar minha conta';
+  }
+}
+
+document.getElementById('cSenhaConf').addEventListener('keydown', e => {
+  if (e.key === 'Enter') aceitarConvite();
+});
+</script>
+</body>
+</html>

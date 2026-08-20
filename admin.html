@@ -100,6 +100,7 @@ select,input,textarea{font-family:Outfit,sans-serif}
   <div class="tab" onclick="showTab('campanhas',this)">Campanhas</div>
   <div class="tab" onclick="showTab('precos',this)">Tabelas de Preco</div>
   <div class="tab" onclick="showTab('regras',this)">Regras Comerciais</div>
+  <div class="tab" onclick="showTab('convites',this)">Convites</div>
   <div class="tab" onclick="showTab('logs',this)">Logs</div>
 </div>
 <div class="panel">
@@ -132,6 +133,13 @@ select,input,textarea{font-family:Outfit,sans-serif}
     <div class="page-header"><h2 class="page-title">Regras Comerciais</h2></div>
     <div id="regrasList"></div>
   </div>
+  <div class="panel-content hidden" id="tab-convites">
+    <div class="page-header">
+      <h2 class="page-title">Convites para Clientes Existentes</h2>
+      <button class="btn btn-primary" onclick="openNovoConvite()">Novo convite</button>
+    </div>
+    <div id="convitesList"></div>
+  </div>
   <div class="panel-content hidden" id="tab-logs">
     <div class="page-header"><h2 class="page-title">Logs de Auditoria</h2></div>
     <div id="logsList"></div>
@@ -147,6 +155,8 @@ function showTab(n, el) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + n).classList.remove('hidden');
   el.classList.add('active');
+  if (n === 'convites') loadConvites();
+  if (n === 'usuarios') loadUsuarios();
 }
 
 (async () => {
@@ -659,6 +669,169 @@ function base64ToBlob(base64, mimeType) {
 function copiarCredenciais(email, senha, limite, razao) {
   const texto = `Boxer Hub — Credenciais de Acesso\n\nEmpresa: ${razao}\nLogin: ${email}\nSenha temporaria: ${senha}\nLimite de credito: R$ ${parseFloat(limite||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}\n\nAcesse: https://app.boxersoldas.com.br/hub\nRecomendamos trocar a senha no primeiro acesso.`;
   navigator.clipboard.writeText(texto).then(() => toast('Credenciais copiadas!')).catch(() => toast('Erro ao copiar', 'error'));
+}
+
+// === CONVITES ===
+
+let allConvites = [];
+
+async function loadConvites() {
+  const wrap = document.getElementById('convitesList');
+  try {
+    allConvites = await sb('/hub_convites?order=criado_em.desc&select=*,hub_clientes(razao_social,cnpj)');
+    if (!allConvites.length) {
+      wrap.innerHTML = '<div class="empty-state"><h3>Nenhum convite criado</h3><p style="margin-top:8px;font-size:13px">Use o botao acima para convidar clientes que ja existem no ZEN/ERP.</p></div>';
+      return;
+    }
+    const statusColors = {pendente:'#dbeafe;color:#1e40af',aceito:'#d1fae5;color:#065f46',expirado:'#fee2e2;color:#991b1b',cancelado:'#f3f4f6;color:#6b7280'};
+    wrap.innerHTML = `<div style="overflow-x:auto"><table>
+      <thead><tr><th>Empresa</th><th>Email</th><th>Status</th><th>Criado em</th><th>Expira em</th><th></th></tr></thead>
+      <tbody>${allConvites.map(c => {
+        const cli = c.hub_clientes || {};
+        const sc = statusColors[c.status] || statusColors.pendente;
+        return `<tr>
+          <td><strong>${cli.razao_social || '—'}</strong><br><span style="font-size:11px;color:#718096">${cli.cnpj ? fmtCnpj(cli.cnpj) : ''}</span></td>
+          <td>${c.email}</td>
+          <td><span class="etapa-badge" style="background:${sc}">${c.status}</span></td>
+          <td style="white-space:nowrap">${fmtData(c.criado_em)}</td>
+          <td style="white-space:nowrap">${fmtData(c.expira_em)}</td>
+          <td style="white-space:nowrap">
+            ${c.status === 'pendente' ? `<button class="btn btn-outline btn-sm" onclick="copiarLinkConvite('${c.token}')">Copiar link</button> <button class="btn btn-danger btn-sm" onclick="cancelarConvite('${c.id}')">Cancelar</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty-state"><h3>Erro ao carregar convites</h3><p>' + e.message + '</p></div>';
+  }
+}
+
+let _conviteBuscaTimer = null;
+
+function openNovoConvite() {
+  openModal(`
+    <h3 style="font-size:18px;margin-bottom:16px;color:#1d327b">Novo Convite</h3>
+    <div class="form-row">
+      <label>Buscar cliente (CNPJ ou razao social)</label>
+      <input id="convBusca" placeholder="Digite CNPJ ou nome..." oninput="buscarClienteConvite()">
+    </div>
+    <div id="convResultados" style="margin-bottom:16px"></div>
+    <div id="convClienteSel" class="hidden" style="padding:14px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;margin-bottom:16px">
+      <div style="font-size:14px;font-weight:700;color:#166534" id="convSelNome"></div>
+      <div style="font-size:12px;color:#4a5568" id="convSelInfo"></div>
+      <input type="hidden" id="convSelId">
+    </div>
+    <div class="form-row">
+      <label>Email do cliente</label>
+      <input id="convEmail" type="email" placeholder="email@empresa.com">
+      <div style="font-size:11px;color:#718096;margin-top:3px">Email que recebera o link de convite</div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btnCriarConvite" onclick="criarConvite()">Criar Convite</button>
+    </div>
+  `);
+}
+
+async function buscarClienteConvite() {
+  clearTimeout(_conviteBuscaTimer);
+  const q = document.getElementById('convBusca').value.trim();
+  const wrap = document.getElementById('convResultados');
+  if (q.length < 3) { wrap.innerHTML = ''; return; }
+
+  _conviteBuscaTimer = setTimeout(async () => {
+    try {
+      const qClean = q.replace(/[.\-\/]/g, '');
+      let clientes;
+      if (/^\d+$/.test(qClean) && qClean.length >= 3) {
+        clientes = await sb('/hub_clientes?cnpj=ilike.*' + qClean + '*&ativo=eq.true&limit=8&select=id,razao_social,cnpj,nome_fantasia,limite_credito');
+      } else {
+        clientes = await sb('/hub_clientes?or=(razao_social.ilike.*' + encodeURIComponent(q) + '*,nome_fantasia.ilike.*' + encodeURIComponent(q) + '*)&ativo=eq.true&limit=8&select=id,razao_social,cnpj,nome_fantasia,limite_credito');
+      }
+      if (!clientes.length) {
+        wrap.innerHTML = '<div style="font-size:12px;color:#718096;padding:8px 0">Nenhum cliente encontrado</div>';
+        return;
+      }
+      wrap.innerHTML = `<div style="border:1px solid #e2e8f0;border-radius:6px;max-height:200px;overflow-y:auto">${clientes.map(c => `
+        <div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #e2e8f0;font-size:13px" onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''" onclick="selecionarClienteConvite('${c.id}','${(c.razao_social||'').replace(/'/g,"\\'")}','${c.cnpj}','${c.nome_fantasia||''}',${c.limite_credito||0})">
+          <strong>${c.razao_social}</strong><br>
+          <span style="font-size:11px;color:#718096">${fmtCnpj(c.cnpj)} ${c.nome_fantasia ? '| ' + c.nome_fantasia : ''}</span>
+        </div>
+      `).join('')}</div>`;
+    } catch (e) {
+      wrap.innerHTML = '<div style="font-size:12px;color:#e30613;padding:8px 0">Erro na busca</div>';
+    }
+  }, 300);
+}
+
+function selecionarClienteConvite(id, nome, cnpj, fantasia, limite) {
+  document.getElementById('convSelId').value = id;
+  document.getElementById('convSelNome').textContent = nome;
+  document.getElementById('convSelInfo').textContent = 'CNPJ: ' + fmtCnpj(cnpj) + (fantasia ? ' | ' + fantasia : '') + (limite ? ' | Limite: ' + fmtMoeda(limite) : '');
+  document.getElementById('convClienteSel').classList.remove('hidden');
+  document.getElementById('convResultados').innerHTML = '';
+  document.getElementById('convBusca').value = nome;
+}
+
+async function criarConvite() {
+  const clienteId = document.getElementById('convSelId').value;
+  const email = document.getElementById('convEmail').value.trim();
+  const btn = document.getElementById('btnCriarConvite');
+
+  if (!clienteId) { toast('Selecione um cliente', 'error'); return; }
+  if (!email || !email.includes('@')) { toast('Informe um email valido', 'error'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Criando...';
+
+  try {
+    const token = crypto.randomUUID();
+    const expira = new Date();
+    expira.setDate(expira.getDate() + 7);
+
+    await sb('/hub_convites', 'POST', {
+      cliente_id: clienteId,
+      email: email,
+      token: token,
+      status: 'pendente',
+      criado_por: getUserId(),
+      expira_em: expira.toISOString()
+    });
+
+    const link = window.location.origin + '/convite.html?token=' + token;
+    openModal(`
+      <h3 style="font-size:18px;color:#16a34a;margin-bottom:16px">Convite Criado</h3>
+      <div style="padding:14px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;margin-bottom:16px">
+        <div style="font-size:12px;color:#718096;margin-bottom:4px">Link de ativacao (valido por 7 dias):</div>
+        <div style="font-size:13px;font-weight:500;color:#1a202c;word-break:break-all;font-family:monospace;background:#fff;padding:8px;border-radius:4px;border:1px solid #d0d8e8">${link}</div>
+      </div>
+      <div style="font-size:12px;color:#718096;margin-bottom:16px">Envie este link para <strong>${email}</strong>. O cliente ira definir sua senha e acessar o Hub.</div>
+      <div class="form-actions">
+        <button class="btn btn-outline btn-sm" onclick="copiarLinkConvite('${token}')">Copiar link</button>
+        <button class="btn btn-primary" onclick="closeModal();loadConvites()">Fechar</button>
+      </div>
+    `);
+  } catch (e) {
+    toast('Erro ao criar convite: ' + e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Criar Convite';
+  }
+}
+
+function copiarLinkConvite(token) {
+  const link = window.location.origin + '/convite.html?token=' + token;
+  navigator.clipboard.writeText(link).then(() => toast('Link copiado!')).catch(() => toast('Erro ao copiar', 'error'));
+}
+
+async function cancelarConvite(id) {
+  if (!confirm('Cancelar este convite?')) return;
+  try {
+    await sb('/hub_convites?id=eq.' + id, 'PATCH', { status: 'cancelado' });
+    toast('Convite cancelado');
+    await loadConvites();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'error');
+  }
 }
 </script>
 </body>
