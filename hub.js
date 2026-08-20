@@ -201,13 +201,16 @@ function renderTopbar(titulo) {
   const slug = location.pathname.split('/').pop().replace('.html', '') || 'index';
   const currentPage = slug === 'index' ? 'index.html' : slug + (slug.includes('.') ? '' : '.html');
 
+  const tipo = getUserTipo();
   const navItems = [
     { href: 'catalogo.html', label: 'Catalogo', icon: '&#9783;' },
-    { href: 'pedidos.html', label: 'Pedidos', icon: '&#9776;' },
-    { href: 'financeiro.html', label: 'Financeiro', icon: '&#36;' },
-    { href: 'cadastro.html', label: 'Cadastro', icon: '&#9881;' },
-    { href: 'pesquisas.html', label: 'Pesquisas', icon: '&#9998;' }
+    { href: 'pedidos.html', label: 'Pedidos', icon: '&#9776;' }
   ];
+  if (tipo === 'cliente' || tipo === 'representante') {
+    navItems.push({ href: 'financeiro.html', label: 'Financeiro', icon: '&#36;' });
+    navItems.push({ href: 'cadastro.html', label: 'Cadastro', icon: '&#9881;' });
+  }
+  navItems.push({ href: 'pesquisas.html', label: 'Pesquisas', icon: '&#9998;' });
   if (['admin', 'manager', 'analyst'].includes(role)) {
     navItems.push({ href: 'admin.html', label: 'Admin', icon: '&#9878;' });
   }

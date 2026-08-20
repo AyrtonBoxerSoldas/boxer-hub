@@ -252,6 +252,31 @@ module.exports = async function handler(req, res) {
       })
     });
 
+    // 9 — Email de boas-vindas ao cliente
+    const RESEND_KEY = process.env.RESEND_API_KEY;
+    let emailStatus = 'nao_configurado';
+    if (RESEND_KEY) {
+      try {
+        const emailRes = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + RESEND_KEY
+          },
+          body: JSON.stringify({
+            from: 'Boxer Hub <andre.coelho@boxersoldas.com.br>',
+            to: [emailCliente],
+            subject: 'Sua conta no Boxer Hub foi ativada!',
+            html: buildActivationEmail(onb.razao_social, emailCliente, senhaTemp, onb.limite_aprovado)
+          })
+        });
+        emailStatus = emailRes.ok ? 'enviado' : 'erro';
+      } catch (emailErr) {
+        emailStatus = 'erro: ' + emailErr.message;
+        console.error('Erro ao enviar email de ativacao:', emailErr.message);
+      }
+    }
+
     return res.status(200).json({
       ok: true,
       razao_social: onb.razao_social,
@@ -261,13 +286,37 @@ module.exports = async function handler(req, res) {
       erp_cliente_id: erpClienteId,
       cliente_id: clienteId,
       user_id: newUser.id,
-      zen_status: zenStatus
+      zen_status: zenStatus,
+      email_status: emailStatus
     });
 
   } catch (e) {
     console.error('Erro na ativacao:', e);
     return res.status(500).json({ error: e.message });
   }
+}
+
+function buildActivationEmail(razao, email, senha, limite) {
+  const fmtLimite = limite ? 'R$ ' + Number(limite).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#f0f4f8;font-family:Arial,sans-serif">
+    <div style="max-width:560px;margin:0 auto;padding:24px">
+      <div style="text-align:center;margin-bottom:20px">
+        <svg width="40" height="40" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="10" width="180" height="180" rx="30" fill="#e30613"/><line x1="30" y1="30" x2="82" y2="95" stroke="#fff" stroke-width="10" stroke-linecap="round"/><polygon points="100,38 108,80 145,55 118,88 158,92 120,105 148,138 108,118 100,162 92,118 52,138 80,105 42,92 82,88 55,55 92,80" fill="#fff"/></svg>
+      </div>
+      <div style="background:#fff;border:1px solid #d0d8e8;border-radius:12px;padding:28px;margin-bottom:16px">
+        <p>Bem-vindo ao <strong>Boxer Hub</strong>! Sua conta foi ativada com sucesso.</p>
+        <table style="width:100%;border-collapse:collapse;background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;margin:16px 0">
+          <tr><td style="padding:6px 12px;font-size:13px;color:#718096;border-bottom:1px solid #e2e8f0">Empresa</td><td style="padding:6px 12px;font-size:13px;color:#1a202c;font-weight:500;border-bottom:1px solid #e2e8f0">${razao}</td></tr>
+          <tr><td style="padding:6px 12px;font-size:13px;color:#718096;border-bottom:1px solid #e2e8f0">Login</td><td style="padding:6px 12px;font-size:13px;color:#1a202c;font-weight:500;border-bottom:1px solid #e2e8f0">${email}</td></tr>
+          <tr><td style="padding:6px 12px;font-size:13px;color:#718096;border-bottom:1px solid #e2e8f0">Senha temporaria</td><td style="padding:6px 12px;font-size:13px;border-bottom:1px solid #e2e8f0"><code style="font-size:16px;color:#e30613;background:#fee2e2;padding:2px 8px;border-radius:4px">${senha}</code></td></tr>
+          <tr><td style="padding:6px 12px;font-size:13px;color:#718096">Limite de credito</td><td style="padding:6px 12px;font-size:13px;color:#1a202c;font-weight:500">${fmtLimite}</td></tr>
+        </table>
+        <p><strong>Recomendamos trocar a senha no primeiro acesso.</strong></p>
+        <div style="text-align:center;margin:24px 0"><a href="https://hub.boxersoldas.com.br" style="display:inline-block;padding:12px 28px;background:#1d327b;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600">Acessar o Boxer Hub</a></div>
+      </div>
+      <div style="text-align:center;font-size:11px;color:#a0aec0;line-height:1.6">Boxer Soldas — hub.boxersoldas.com.br<br>Este email foi enviado automaticamente pelo Boxer Hub.</div>
+    </div>
+  </body></html>`;
 }
 
 function generatePassword() {

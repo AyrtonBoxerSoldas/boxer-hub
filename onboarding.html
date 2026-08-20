@@ -891,6 +891,23 @@ async function submitOnboarding() {
     document.querySelectorAll('.step-content').forEach(el => el.classList.add('hidden'));
     document.getElementById('stepSuccess').classList.remove('hidden');
 
+    fetch('/api/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tipo: 'onboarding_novo',
+        dados: {
+          razao_social: gi('fRazao'),
+          cnpj: gi('fCnpj'),
+          nome_fantasia: gi('fFantasia'),
+          contato_email: gi('fEmail'),
+          contato_telefone: gi('fTelefone'),
+          classificacao: getClassification(),
+          regiao: gi('fUf')
+        }
+      })
+    }).catch(() => {});
+
   } catch (e) {
     showToast('Erro de conexao. Tente novamente.', 'error');
     btn.disabled = false;

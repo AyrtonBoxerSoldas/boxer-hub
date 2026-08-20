@@ -799,6 +799,19 @@ async function criarConvite() {
     });
 
     const link = window.location.origin + '/convite.html?token=' + token;
+
+    const selNome = document.getElementById('convSelNome').textContent;
+    const selInfo = document.getElementById('convSelInfo').textContent;
+    const cnpjMatch = selInfo.match(/CNPJ:\s*([\d.\-\/]+)/);
+    fetch('/api/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tipo: 'convite',
+        dados: { email, razao_social: selNome, cnpj: cnpjMatch ? cnpjMatch[1] : '', link }
+      })
+    }).catch(() => {});
+
     openModal(`
       <h3 style="font-size:18px;color:#16a34a;margin-bottom:16px">Convite Criado</h3>
       <div style="padding:14px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;margin-bottom:16px">
