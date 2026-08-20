@@ -21,6 +21,13 @@ body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
 .btn-login:hover{background:#162666}
 .err-msg{background:#fee2e2;color:#991b1b;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;border:1px solid #fecaca;display:none}
 .login-hint{text-align:center;margin-top:16px;font-size:12px;color:#a0aec0}
+.forgot-link{text-align:right;margin:-8px 0 18px;font-size:12px}
+.forgot-link a{color:#25bbee;text-decoration:none;font-weight:500;cursor:pointer}
+.forgot-link a:hover{color:#1d327b;text-decoration:underline}
+.success-msg{background:#d1fae5;color:#065f46;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;border:1px solid #6ee7b7;display:none}
+.back-link{text-align:center;margin-top:12px;font-size:13px}
+.back-link a{color:#25bbee;text-decoration:none;font-weight:500;cursor:pointer}
+.back-link a:hover{color:#1d327b;text-decoration:underline}
 </style>
 </head>
 <body>
@@ -39,8 +46,32 @@ body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
     <div class="err-msg" id="loginErr"></div>
     <div class="field"><label>Email</label><input id="loginEmail" type="email" placeholder="seu@email.com"></div>
     <div class="field"><label>Senha</label><input id="loginPass" type="password" placeholder="••••••••"></div>
+    <p class="forgot-link"><a onclick="showRecovery()">Esqueci minha senha</a></p>
     <button class="btn-login" onclick="doLogin()">Entrar</button>
     <p class="login-hint">Acesso restrito a parceiros Boxer Soldas</p>
+    <div style="text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <p style="font-size:13px;color:#718096;margin-bottom:8px">Ainda nao e revendedor?</p>
+      <a href="onboarding.html" style="display:inline-block;padding:10px 24px;border:1.5px solid #25bbee;border-radius:6px;color:#1d327b;font-size:14px;font-weight:600;text-decoration:none;transition:all .2s" onmouseover="this.style.background='#1d327b';this.style.color='#fff';this.style.borderColor='#1d327b'" onmouseout="this.style.background='transparent';this.style.color='#1d327b';this.style.borderColor='#25bbee'">Quero ser revendedor Boxer</a>
+    </div>
+  </div>
+</div>
+
+<div class="login-wrap" id="recoveryWrap" style="display:none">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg width="56" height="56" viewBox="0 0 200 200">
+        <rect x="10" y="10" width="180" height="180" rx="30" fill="#e30613"/>
+        <line x1="30" y1="30" x2="82" y2="95" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+        <polygon points="100,38 108,80 145,55 118,88 158,92 120,105 148,138 108,118 100,162 92,118 52,138 80,105 42,92 82,88 55,55 92,80" fill="#fff"/>
+      </svg>
+    </div>
+    <h1>Recuperar Senha</h1>
+    <p class="subtitle">Informe seu email para receber o link de redefinicao</p>
+    <div class="err-msg" id="recoveryErr"></div>
+    <div class="success-msg" id="recoveryOk"></div>
+    <div class="field"><label>Email</label><input id="recoveryEmail" type="email" placeholder="seu@email.com"></div>
+    <button class="btn-login" id="recoveryBtn" onclick="doRecover()">Enviar link de recuperacao</button>
+    <p class="back-link"><a onclick="showLogin()">Voltar ao login</a></p>
   </div>
 </div>
 
@@ -49,9 +80,65 @@ body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
 document.getElementById('loginPass').addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin();
 });
+document.getElementById('recoveryEmail').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doRecover();
+});
 
 function onLoginSuccess() {
   window.location.href = 'catalogo.html';
+}
+
+function showRecovery() {
+  document.querySelector('.login-wrap:not(#recoveryWrap)').style.display = 'none';
+  document.getElementById('recoveryWrap').style.display = 'flex';
+  document.getElementById('recoveryEmail').focus();
+}
+
+function showLogin() {
+  document.getElementById('recoveryWrap').style.display = 'none';
+  document.querySelector('.login-wrap:not(#recoveryWrap)').style.display = 'flex';
+}
+
+async function doRecover() {
+  const email = document.getElementById('recoveryEmail').value.trim();
+  const errEl = document.getElementById('recoveryErr');
+  const okEl = document.getElementById('recoveryOk');
+  const btn = document.getElementById('recoveryBtn');
+
+  errEl.style.display = 'none';
+  okEl.style.display = 'none';
+
+  if (!email) {
+    errEl.textContent = 'Informe seu email';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  try {
+    const res = await fetch(SB_URL + '/auth/v1/recover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SB_ANON },
+      body: JSON.stringify({ email })
+    });
+
+    if (!res.ok) {
+      errEl.textContent = 'Erro ao enviar. Tente novamente.';
+      errEl.style.display = 'block';
+    } else {
+      okEl.textContent = 'Link de recuperacao enviado para ' + email + '. Verifique sua caixa de entrada.';
+      okEl.style.display = 'block';
+      document.getElementById('recoveryEmail').value = '';
+    }
+  } catch (e) {
+    errEl.textContent = 'Erro de conexao. Tente novamente.';
+    errEl.style.display = 'block';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Enviar link de recuperacao';
 }
 
 if (restoreSession()) {

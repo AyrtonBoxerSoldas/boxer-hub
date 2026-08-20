@@ -59,6 +59,33 @@ tbody tr:hover{background:#f0f7ff}
 .role-financial{background:#16a34a;color:#fff}
 .role-rep{background:#e97316;color:#fff}
 .role-dealer{background:#6b7280;color:#fff}
+
+.etapa-badge{display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
+.etapa-formulario{background:#dbeafe;color:#1e40af}
+.etapa-aprovacao_docs{background:#fef3c7;color:#92400e}
+.etapa-validacao_ia{background:#e0e7ff;color:#3730a3}
+.etapa-aprovacao_adm_vendas{background:#fce7f3;color:#9d174d}
+.etapa-analise_credito{background:#ccfbf1;color:#115e59}
+.etapa-aprovacao_credito{background:#fef3c7;color:#78350f}
+.etapa-ativacao{background:#d1fae5;color:#065f46}
+.etapa-ativo{background:#16a34a;color:#fff}
+.etapa-rejeitado{background:#fee2e2;color:#991b1b}
+
+.filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.filter-btn{padding:6px 14px;border-radius:6px;border:1px solid #c3cfe2;background:#fff;font-family:Outfit;font-size:12px;font-weight:500;color:#4a5568;cursor:pointer}
+.filter-btn:hover{border-color:#25bbee;color:#1d327b}
+.filter-btn.active{background:#1d327b;color:#fff;border-color:#1d327b}
+.filter-count{font-size:10px;background:rgba(255,255,255,.3);padding:1px 5px;border-radius:8px;margin-left:3px}
+
+.detail-section{margin-bottom:16px;padding:14px;background:#f7fafc;border-radius:8px;border:1px solid #e2e8f0}
+.detail-section h4{font-size:12px;font-weight:600;color:#718096;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.detail-row{display:flex;justify-content:space-between;padding:4px 0;font-size:13px}
+.detail-label{color:#718096}
+.detail-value{color:#1a202c;font-weight:500;text-align:right;max-width:65%}
+.action-bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0}
+.btn-success{background:#16a34a;color:#fff;border-color:#16a34a}.btn-success:hover{background:#15803d}
+.btn-warn{background:#f59e0b;color:#fff;border-color:#f59e0b}.btn-warn:hover{background:#d97706}
+select,input,textarea{font-family:Outfit,sans-serif}
 </style>
 </head>
 <body>
@@ -68,14 +95,22 @@ tbody tr:hover{background:#f0f7ff}
 </div>
 
 <div class="tabs">
-  <div class="tab active" onclick="showTab('usuarios',this)">Usuarios</div>
+  <div class="tab active" onclick="showTab('onboarding',this)">Onboarding</div>
+  <div class="tab" onclick="showTab('usuarios',this)">Usuarios</div>
   <div class="tab" onclick="showTab('campanhas',this)">Campanhas</div>
   <div class="tab" onclick="showTab('precos',this)">Tabelas de Preco</div>
   <div class="tab" onclick="showTab('regras',this)">Regras Comerciais</div>
   <div class="tab" onclick="showTab('logs',this)">Logs</div>
 </div>
 <div class="panel">
-  <div class="panel-content" id="tab-usuarios">
+  <div class="panel-content" id="tab-onboarding">
+    <div class="page-header">
+      <h2 class="page-title">Pipeline de Onboarding</h2>
+    </div>
+    <div class="filter-bar" id="onbFilterBar"></div>
+    <div id="onboardingList"></div>
+  </div>
+  <div class="panel-content hidden" id="tab-usuarios">
     <div class="page-header">
       <h2 class="page-title">Usuarios do Hub</h2>
       <button class="btn btn-primary" onclick="openNovoUsuario()">Novo usuario</button>
@@ -116,12 +151,12 @@ function showTab(n, el) {
 
 (async () => {
   await loadPerfil();
-  if (!['admin','manager','analyst'].includes(getUserRole())) {
+  if (!['admin','manager','analyst','financial'].includes(getUserRole())) {
     document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#718096;font-family:Outfit"><h2>Acesso restrito</h2></div>';
     return;
   }
   renderTopbar('Admin');
-  await loadUsuarios();
+  await loadOnboardings();
 })();
 
 async function loadUsuarios() {
@@ -191,6 +226,310 @@ async function editUsuario(id) {
 
 function openNovaCampanha() {
   toast('Campanhas em desenvolvimento');
+}
+
+// === ONBOARDING ===
+
+const ETAPAS = [
+  { key: 'formulario', label: 'Formulario', short: 'Form' },
+  { key: 'aprovacao_docs', label: 'Aprovacao Docs', short: 'Docs' },
+  { key: 'validacao_ia', label: 'Validacao IA', short: 'IA' },
+  { key: 'aprovacao_adm_vendas', label: 'ADM Vendas', short: 'ADM' },
+  { key: 'analise_credito', label: 'Analise Credito', short: 'Credito' },
+  { key: 'aprovacao_credito', label: 'Financeiro', short: 'Fin' },
+  { key: 'ativacao', label: 'Ativacao', short: 'Ativar' },
+  { key: 'ativo', label: 'Ativo', short: 'Ativo' },
+  { key: 'rejeitado', label: 'Rejeitado', short: 'Rej' }
+];
+
+let allOnboardings = [];
+let onbFilter = 'pendentes';
+
+async function loadOnboardings() {
+  const wrap = document.getElementById('onboardingList');
+  try {
+    allOnboardings = await sb('/hub_onboarding?ativo=eq.true&order=criado_em.desc&select=*');
+    renderOnbFilters();
+    renderOnbList();
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty-state"><h3>Erro ao carregar onboardings</h3><p>' + e.message + '</p></div>';
+  }
+}
+
+function renderOnbFilters() {
+  const counts = {};
+  ETAPAS.forEach(e => counts[e.key] = 0);
+  allOnboardings.forEach(o => { if (counts[o.etapa_atual] !== undefined) counts[o.etapa_atual]++; });
+  const pendentes = allOnboardings.filter(o => !['ativo','rejeitado'].includes(o.etapa_atual)).length;
+
+  let html = `<button class="filter-btn ${onbFilter === 'pendentes' ? 'active' : ''}" onclick="setOnbFilter('pendentes')">Pendentes<span class="filter-count">${pendentes}</span></button>`;
+  html += `<button class="filter-btn ${onbFilter === 'todos' ? 'active' : ''}" onclick="setOnbFilter('todos')">Todos<span class="filter-count">${allOnboardings.length}</span></button>`;
+  ETAPAS.forEach(e => {
+    if (counts[e.key] > 0) {
+      html += `<button class="filter-btn ${onbFilter === e.key ? 'active' : ''}" onclick="setOnbFilter('${e.key}')">${e.short}<span class="filter-count">${counts[e.key]}</span></button>`;
+    }
+  });
+  document.getElementById('onbFilterBar').innerHTML = html;
+}
+
+function setOnbFilter(f) {
+  onbFilter = f;
+  renderOnbFilters();
+  renderOnbList();
+}
+
+function renderOnbList() {
+  let list = allOnboardings;
+  if (onbFilter === 'pendentes') list = list.filter(o => !['ativo','rejeitado'].includes(o.etapa_atual));
+  else if (onbFilter !== 'todos') list = list.filter(o => o.etapa_atual === onbFilter);
+
+  const wrap = document.getElementById('onboardingList');
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty-state"><h3>Nenhum cadastro nesta etapa</h3></div>';
+    return;
+  }
+
+  wrap.innerHTML = `<div style="overflow-x:auto"><table>
+    <thead><tr><th>CNPJ</th><th>Razao Social</th><th>Classificacao</th><th>Etapa</th><th>Data</th><th></th></tr></thead>
+    <tbody>${list.map(o => `<tr>
+      <td>${fmtCnpj(o.cnpj)}</td>
+      <td><strong>${o.razao_social}</strong><br><span style="font-size:11px;color:#718096">${o.nome_fantasia || ''}</span></td>
+      <td>${o.classificacao ? '<span style="font-weight:600;text-transform:uppercase;font-size:11px">' + o.classificacao + '</span>' : '—'}</td>
+      <td><span class="etapa-badge etapa-${o.etapa_atual}">${etapaLabel(o.etapa_atual)}</span></td>
+      <td style="white-space:nowrap">${fmtData(o.criado_em)}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="openOnbDetail('${o.id}')">Detalhes</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function etapaLabel(e) {
+  const found = ETAPAS.find(x => x.key === e);
+  return found ? found.label : e;
+}
+
+function openOnbDetail(id) {
+  const o = allOnboardings.find(x => x.id === id);
+  if (!o) return;
+
+  const contatos = o.contatos || [];
+  const enderecos = o.enderecos || [];
+  const end = enderecos[0] || {};
+  const respostas = o.respostas_classificacao || {};
+
+  let actionsHtml = buildOnbActions(o);
+
+  const html = `
+    <h3 style="font-size:18px;margin-bottom:4px;color:#1d327b">${o.razao_social}</h3>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
+      <span class="etapa-badge etapa-${o.etapa_atual}">${etapaLabel(o.etapa_atual)}</span>
+      <span style="font-size:12px;color:#718096">Criado em ${fmtData(o.criado_em)}</span>
+    </div>
+
+    <div class="detail-section">
+      <h4>Empresa</h4>
+      <div class="detail-row"><span class="detail-label">CNPJ</span><span class="detail-value">${fmtCnpj(o.cnpj)}</span></div>
+      <div class="detail-row"><span class="detail-label">Razao Social</span><span class="detail-value">${o.razao_social}</span></div>
+      <div class="detail-row"><span class="detail-label">Fachada</span><span class="detail-value">${o.nome_fantasia || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">IE</span><span class="detail-value">${o.inscricao_estadual || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${o.contato_email || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Telefone</span><span class="detail-value">${o.contato_telefone || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Responsavel</span><span class="detail-value">${o.contato_nome || '—'}</span></div>
+    </div>
+
+    <div class="detail-section">
+      <h4>Endereco</h4>
+      <div class="detail-row"><span class="detail-label">CEP</span><span class="detail-value">${end.cep || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Logradouro</span><span class="detail-value">${end.logradouro || '—'}, ${end.numero || ''} ${end.complemento || ''}</span></div>
+      <div class="detail-row"><span class="detail-label">Bairro</span><span class="detail-value">${end.bairro || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Cidade/UF</span><span class="detail-value">${end.cidade || '—'} / ${end.uf || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">IBGE</span><span class="detail-value">${end.ibge_codigo || '—'}</span></div>
+    </div>
+
+    <div class="detail-section">
+      <h4>Contatos</h4>
+      ${contatos.map(c => `
+        <div style="padding:6px 0;border-bottom:1px solid #e2e8f0">
+          <div style="font-size:12px;font-weight:600;color:#1d327b;text-transform:uppercase">${c.tipo || 'Contato'}</div>
+          <div class="detail-row"><span class="detail-label">Nome</span><span class="detail-value">${c.nome}</span></div>
+          <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${c.email}</span></div>
+          <div class="detail-row"><span class="detail-label">Telefone</span><span class="detail-value">${c.telefone}</span></div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="detail-section">
+      <h4>Perfil e Classificacao</h4>
+      <div class="detail-row"><span class="detail-label">Loja Fisica</span><span class="detail-value">${respostas.loja_fisica ? 'Sim' : 'Nao'}</span></div>
+      <div class="detail-row"><span class="detail-label">Marketplaces</span><span class="detail-value">${respostas.marketplaces?.ativo ? 'Sim — ' + (respostas.marketplaces.quais||[]).join(', ') : 'Nao'}</span></div>
+      <div class="detail-row"><span class="detail-label">Equipe Vendas</span><span class="detail-value">${respostas.equipe_vendas || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Site Proprio</span><span class="detail-value">${respostas.site_proprio?.ativo ? 'Sim — ' + (respostas.site_proprio.url || '') : 'Nao'}</span></div>
+      <div class="detail-row"><span class="detail-label">Perfil Loja</span><span class="detail-value">${(respostas.perfil_loja||[]).join(', ') || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Classificacao</span><span class="detail-value" style="font-weight:700;color:#1d327b">${(o.classificacao||'—').toUpperCase()}</span></div>
+      <div class="detail-row"><span class="detail-label">Regiao</span><span class="detail-value">${o.regiao || '—'}</span></div>
+    </div>
+
+    ${o.limite_aprovado ? `<div class="detail-section">
+      <h4>Credito</h4>
+      <div class="detail-row"><span class="detail-label">Limite Sugerido</span><span class="detail-value">${o.limite_sugerido ? fmtMoeda(o.limite_sugerido) : '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Limite Aprovado</span><span class="detail-value" style="font-weight:700;color:#16a34a">${fmtMoeda(o.limite_aprovado)}</span></div>
+    </div>` : ''}
+
+    ${o.aprovador_docs_observacoes || o.aprovador_credito_observacoes ? `<div class="detail-section">
+      <h4>Observacoes</h4>
+      ${o.aprovador_docs_observacoes ? '<div style="font-size:13px;margin-bottom:6px"><strong>ADM Vendas:</strong> ' + o.aprovador_docs_observacoes + '</div>' : ''}
+      ${o.aprovador_credito_observacoes ? '<div style="font-size:13px"><strong>Financeiro:</strong> ' + o.aprovador_credito_observacoes + '</div>' : ''}
+    </div>` : ''}
+
+    ${o.motivo_rejeicao ? `<div class="detail-section" style="border-color:#fecaca;background:#fef2f2">
+      <h4 style="color:#991b1b">Motivo da Rejeicao</h4>
+      <div style="font-size:13px;color:#991b1b">${o.motivo_rejeicao}</div>
+    </div>` : ''}
+
+    ${actionsHtml}
+  `;
+  openModal(html);
+}
+
+function buildOnbActions(o) {
+  const role = getUserRole();
+  const etapa = o.etapa_atual;
+  let html = '';
+
+  if (etapa === 'formulario') {
+    if (['admin','manager','analyst'].includes(role)) {
+      html = `
+        <div class="action-bar">
+          <span style="font-size:12px;color:#718096;flex:1">Avancar para revisao de documentos</span>
+          <button class="btn btn-success btn-sm" onclick="avancarOnb('${o.id}','aprovacao_docs')">Enviar para Docs</button>
+        </div>`;
+    }
+  }
+
+  if (etapa === 'aprovacao_docs') {
+    if (['admin','manager','analyst'].includes(role)) {
+      html = `
+        <div class="form-row" style="margin-top:16px"><label>Observacoes (opcional)</label><textarea id="onbObs" rows="2" placeholder="Observacoes sobre os documentos..."></textarea></div>
+        <div class="action-bar">
+          <button class="btn btn-danger btn-sm" onclick="rejeitarOnb('${o.id}')">Rejeitar</button>
+          <button class="btn btn-success btn-sm" onclick="avancarOnb('${o.id}','validacao_ia',{aprovador_docs_id:getUserId(),aprovador_docs_observacoes:document.getElementById('onbObs').value})">Aprovar Documentos</button>
+        </div>`;
+    }
+  }
+
+  if (etapa === 'validacao_ia') {
+    if (['admin','manager','analyst'].includes(role)) {
+      html = `
+        <div class="action-bar">
+          <span style="font-size:12px;color:#718096;flex:1">IA ainda nao implementada — avancar manualmente</span>
+          <button class="btn btn-warn btn-sm" onclick="avancarOnb('${o.id}','aprovacao_adm_vendas')">Pular IA (MVP)</button>
+        </div>`;
+    }
+  }
+
+  if (etapa === 'aprovacao_adm_vendas') {
+    if (['admin','manager'].includes(role)) {
+      html = `
+        <div class="form-row" style="margin-top:16px"><label>Observacoes ADM Vendas</label><textarea id="onbObsAdm" rows="2" placeholder="Parecer sobre o cadastro..."></textarea></div>
+        <div class="action-bar">
+          <button class="btn btn-danger btn-sm" onclick="rejeitarOnb('${o.id}')">Rejeitar</button>
+          <button class="btn btn-success btn-sm" onclick="avancarOnb('${o.id}','analise_credito',{aprovador_docs_id:getUserId(),aprovador_docs_observacoes:document.getElementById('onbObsAdm').value,docs_status:'aprovado',docs_aprovado_em:new Date().toISOString()})">Aprovar Cadastro</button>
+        </div>`;
+    }
+  }
+
+  if (etapa === 'analise_credito') {
+    if (['admin','manager','financial'].includes(role)) {
+      html = `
+        <div class="action-bar">
+          <span style="font-size:12px;color:#718096;flex:1">IA de credito ainda nao implementada — avancar para financeiro</span>
+          <button class="btn btn-warn btn-sm" onclick="avancarOnb('${o.id}','aprovacao_credito')">Enviar para Financeiro</button>
+        </div>`;
+    }
+  }
+
+  if (etapa === 'aprovacao_credito') {
+    if (['admin','financial'].includes(role)) {
+      html = `
+        <div class="form-row" style="margin-top:16px">
+          <label>Limite de Credito (R$)</label>
+          <input type="number" id="onbLimite" placeholder="Ex: 10000.00" step="0.01" min="0">
+          <div style="font-size:11px;color:#718096;margin-top:3px">Politica: limite inicial = valor da primeira compra. Prazo 28/56/84 dias.</div>
+        </div>
+        <div class="form-row"><label>Observacoes Financeiro</label><textarea id="onbObsFin" rows="2" placeholder="Parecer sobre o credito..."></textarea></div>
+        <div class="action-bar">
+          <button class="btn btn-danger btn-sm" onclick="rejeitarOnb('${o.id}')">Rejeitar</button>
+          <button class="btn btn-success btn-sm" onclick="aprovarCredito('${o.id}')">Aprovar Credito</button>
+        </div>`;
+    }
+  }
+
+  if (etapa === 'ativacao') {
+    if (['admin'].includes(role)) {
+      html = `
+        <div class="action-bar">
+          <span style="font-size:12px;color:#718096;flex:1">Criar cliente no ZEN, gerar usuario e enviar credenciais</span>
+          <button class="btn btn-success btn-sm" onclick="ativarCliente('${o.id}')">Ativar Cliente</button>
+        </div>`;
+    }
+  }
+
+  return html;
+}
+
+async function avancarOnb(id, novaEtapa, extraFields) {
+  try {
+    const body = { etapa_atual: novaEtapa, atualizado_em: new Date().toISOString() };
+    if (extraFields) Object.assign(body, extraFields);
+    await sb('/hub_onboarding?id=eq.' + id, 'PATCH', body);
+    toast('Cadastro avancado para: ' + etapaLabel(novaEtapa));
+    closeModal();
+    await loadOnboardings();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'error');
+  }
+}
+
+async function rejeitarOnb(id) {
+  const motivo = prompt('Motivo da rejeicao:');
+  if (!motivo) return;
+  try {
+    await sb('/hub_onboarding?id=eq.' + id, 'PATCH', {
+      etapa_atual: 'rejeitado',
+      motivo_rejeicao: motivo,
+      atualizado_em: new Date().toISOString()
+    });
+    toast('Cadastro rejeitado');
+    closeModal();
+    await loadOnboardings();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'error');
+  }
+}
+
+async function aprovarCredito(id) {
+  const limite = parseFloat(document.getElementById('onbLimite').value);
+  if (!limite || limite <= 0) { toast('Informe um limite valido', 'error'); return; }
+  const obs = document.getElementById('onbObsFin').value;
+  try {
+    await sb('/hub_onboarding?id=eq.' + id, 'PATCH', {
+      etapa_atual: 'ativacao',
+      limite_aprovado: limite,
+      credito_status: 'aprovado',
+      aprovador_credito_id: getUserId(),
+      aprovador_credito_observacoes: obs,
+      credito_aprovado_em: new Date().toISOString(),
+      atualizado_em: new Date().toISOString()
+    });
+    toast('Credito aprovado — R$ ' + limite.toLocaleString('pt-BR', {minimumFractionDigits:2}));
+    closeModal();
+    await loadOnboardings();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'error');
+  }
+}
+
+async function ativarCliente(id) {
+  toast('Ativacao em desenvolvimento — requer integracao ZEN + criacao de usuario Auth', 'error');
 }
 </script>
 </body>

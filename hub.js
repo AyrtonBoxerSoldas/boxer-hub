@@ -157,6 +157,10 @@ function getUserId() {
   return SESSION?.user?.id || '';
 }
 
+function cartKey() {
+  return 'hub_cart_' + getUserId();
+}
+
 // === LOGIN UI HELPERS ===
 
 function showLoginErr(msg) {
@@ -297,6 +301,18 @@ function closeModal() {
 function toggleMobileMenu() {
   document.getElementById('hubNav').classList.toggle('open');
   document.getElementById('hubMobileUser').classList.toggle('open');
+}
+
+// === PASSWORD RECOVERY ===
+
+async function sendPasswordReset(email) {
+  const res = await fetch(SB_URL + '/auth/v1/recover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SB_ANON },
+    body: JSON.stringify({ email })
+  });
+  if (!res.ok) throw new Error('Falha ao enviar reset de senha');
+  return true;
 }
 
 // === UTILS ===

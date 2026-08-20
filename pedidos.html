@@ -57,6 +57,31 @@ tbody tr:hover{background:#f0f7ff}
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .page-title{font-size:16px;font-weight:600;color:#1d327b}
 .empty-state{text-align:center;padding:40px 20px;color:#718096}
+
+.cart-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #e2e8f0}
+.cart-item:last-child{border-bottom:none}
+.cart-item-info{flex:1;min-width:0}
+.cart-item-sku{font-size:10px;color:#718096;text-transform:uppercase;letter-spacing:.5px}
+.cart-item-nome{font-size:13px;font-weight:600;color:#1a202c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cart-item-preco{font-size:12px;color:#718096}
+.cart-item-qty{display:flex;align-items:center;gap:4px}
+.cart-item-qty label{font-size:10px;color:#718096;font-weight:500}
+.cart-item-qty input{width:52px;padding:6px;border:1px solid #d0d8e8;border-radius:6px;text-align:center;font-family:Outfit;font-size:13px}
+.cart-item-subtotal{font-size:14px;font-weight:700;color:#1d327b;min-width:80px;text-align:right}
+.cart-item-remove{background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px;padding:4px 8px}
+.cart-item-remove:hover{background:#fef2f2;border-radius:4px}
+.cart-summary{display:flex;align-items:center;justify-content:space-between;padding:16px 0;margin-top:8px;border-top:2px solid #1d327b}
+.cart-total-label{font-size:14px;color:#4a5568;font-weight:500}
+.cart-total-valor{font-size:22px;font-weight:700;color:#1d327b}
+.cart-total-nota{font-size:10px;color:#718096;display:block}
+.cart-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.cart-tab-badge{background:#e30613;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:5px}
+.cart-item-stock{font-size:10px;font-weight:600;display:flex;align-items:center;gap:3px;margin-top:2px}
+.cart-item-stock .dot{width:5px;height:5px;border-radius:50%;display:inline-block}
+.s-ok{color:#16a34a}.s-ok .dot{background:#16a34a}
+.s-low{color:#f59e0b}.s-low .dot{background:#f59e0b}
+.s-bo{color:#718096}.s-bo .dot{background:#718096}
+.s-no{color:#dc2626}.s-no .dot{background:#dc2626}
 </style>
 </head>
 <body>
@@ -89,13 +114,9 @@ tbody tr:hover{background:#f0f7ff}
   <div class="panel-content hidden" id="tab-novo">
     <div class="page-header">
       <h2 class="page-title">Novo Pedido</h2>
+      <a href="catalogo.html" class="btn btn-outline btn-sm">+ Adicionar produtos</a>
     </div>
-    <div id="carrinhoWrap">
-      <div class="empty-state">
-        <h3>Carrinho vazio</h3>
-        <p>Adicione produtos pelo <a href="catalogo.html" style="color:#1d327b">catalogo</a>.</p>
-      </div>
-    </div>
+    <div id="carrinhoWrap"></div>
   </div>
 </div>
 
@@ -114,7 +135,117 @@ function showTab(n, el) {
   await loadPerfil();
   renderTopbar('Pedidos');
   await loadPedidos();
+  renderCarrinho();
+  const cart = getCart();
+  if (cart.length > 0) {
+    showTab('novo', document.querySelectorAll('.tab')[1]);
+  }
 })();
+
+// === CARRINHO ===
+
+function getCart() {
+  try { return JSON.parse(sessionStorage.getItem(cartKey()) || '[]'); } catch { return []; }
+}
+
+function saveCart(cart) {
+  sessionStorage.setItem(cartKey(), JSON.stringify(cart));
+  stockMap = {};
+  renderCarrinho();
+}
+
+let stockMap = {};
+
+async function renderCarrinho() {
+  const wrap = document.getElementById('carrinhoWrap');
+  const cart = getCart();
+  const tabNovo = document.querySelectorAll('.tab')[1];
+  const totalQty = cart.reduce((s, i) => s + i.quantidade, 0);
+
+  if (cart.length > 0) {
+    tabNovo.innerHTML = 'Novo Pedido <span class="cart-tab-badge">' + totalQty + '</span>';
+  } else {
+    tabNovo.textContent = 'Novo Pedido';
+  }
+
+  if (!cart.length) {
+    wrap.innerHTML = '<div class="empty-state"><h3>Carrinho vazio</h3><p>Adicione produtos pelo <a href="catalogo.html" style="color:#1d327b">catalogo</a>.</p></div>';
+    return;
+  }
+
+  if (!Object.keys(stockMap).length) {
+    try {
+      const ids = cart.map(c => c.produto_id).join(',');
+      const prods = await sb('/hub_v_catalogo?produto_id=in.(' + ids + ')&select=produto_id,status_estoque,backorder_disponivel');
+      prods.forEach(p => { stockMap[p.produto_id] = p; });
+    } catch {}
+  }
+
+  const totalVal = cart.reduce((s, i) => s + (i.preco_base * i.quantidade), 0);
+
+  wrap.innerHTML = `
+    <div>
+      ${cart.map((item, idx) => {
+        const st = stockMap[item.produto_id];
+        const stInfo = st ? stockLabel(st) : { cls: '', text: '' };
+        return `
+        <div class="cart-item">
+          <div class="cart-item-info">
+            <div class="cart-item-sku">${esc(item.sku)}</div>
+            <div class="cart-item-nome">${esc(item.nome || item.sku)}</div>
+            <div class="cart-item-preco">${fmtMoeda(item.preco_base)} un</div>
+            ${stInfo.text ? '<div class="cart-item-stock ' + stInfo.cls + '"><span class="dot"></span>' + stInfo.text + '</div>' : ''}
+          </div>
+          <div class="cart-item-qty">
+            <label>Qtd</label>
+            <input type="number" value="${item.quantidade}" min="1" max="999" onchange="updateCartQty(${idx}, this.value)">
+          </div>
+          <div class="cart-item-subtotal">${fmtMoeda(item.preco_base * item.quantidade)}</div>
+          <button class="cart-item-remove" onclick="removeCartItem(${idx})" title="Remover">&times;</button>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="cart-summary">
+      <div>
+        <span class="cart-total-label">${cart.length} produto${cart.length !== 1 ? 's' : ''} | ${totalQty} unidade${totalQty !== 1 ? 's' : ''}</span>
+        <span class="cart-total-nota">c/ impostos inclusos</span>
+      </div>
+      <div class="cart-total-valor">${fmtMoeda(totalVal)}</div>
+    </div>
+    <div class="cart-actions">
+      <button class="btn btn-danger btn-sm" onclick="clearCart()">Limpar carrinho</button>
+      <button class="btn btn-primary" onclick="toast('Funcionalidade de envio em desenvolvimento','error')">Enviar pedido</button>
+    </div>`;
+}
+
+function stockLabel(p) {
+  if (p.status_estoque === 'disponivel') return { cls: 's-ok', text: 'Em estoque' };
+  if (p.status_estoque === 'baixo') return { cls: 's-low', text: 'Estoque baixo' };
+  if (p.backorder_disponivel) return { cls: 's-bo', text: 'Sob encomenda' };
+  return { cls: 's-no', text: 'Indisponivel' };
+}
+
+function updateCartQty(idx, val) {
+  const cart = getCart();
+  const qty = parseInt(val) || 1;
+  if (cart[idx]) {
+    cart[idx].quantidade = Math.max(1, qty);
+    saveCart(cart);
+  }
+}
+
+function removeCartItem(idx) {
+  const cart = getCart();
+  cart.splice(idx, 1);
+  saveCart(cart);
+}
+
+function clearCart() {
+  sessionStorage.removeItem(cartKey());
+  renderCarrinho();
+}
+
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 async function loadPedidos() {
   const wrap = document.getElementById('pedidosList');

@@ -58,11 +58,25 @@ Nunca usar service_role key no codigo. Anon key e segura para frontend.
 | `hub_pedido_itens` | pedido_id, produto_id, quantidade, preco_unitario, preco_final, subtotal_item | Itens do pedido |
 | `hub_notificacoes` | usuario_id, tipo, titulo, mensagem, referencia_tipo, referencia_id, lida | Notificacoes do sistema |
 | `hub_solicitacoes_credito` | cliente_id, solicitante_id, tipo (aumento_limite/antecipacao/prazo_especial), valor_solicitado, status (pendente→aprovado/rejeitado) | Pedidos de credito |
-| `hub_documentos_cadastrais` | cliente_id, tipo (contrato_social/cartao_cnpj/etc), storage_path, status (pendente→aprovado/rejeitado) | Uploads de documentos |
+| `hub_documentos_cadastrais` | cliente_id (nullable), onboarding_id, tipo (contrato_social/cartao_cnpj/etc), storage_path, status (pendente→aprovado/rejeitado) | Uploads de documentos (cliente ou onboarding) |
 | `hub_produto_anexos` | produto_id, tipo (foto/ficha_tecnica/certificado/fispq/manual/catalogo), storage_path, ordem | Fotos e docs de produtos |
 | `hub_pesquisa_respostas` | pesquisa_id, pergunta_id, respondente_id, resposta_texto, resposta_numero | Respostas dos revendedores |
 | `hub_log_alteracoes` | usuario_id, usuario_email, tabela_ref, registro_id, campo, valor_anterior, valor_novo, acao | Log de auditoria |
 | `hub_log_autenticacao` | usuario_id, email, evento (login_sucesso/login_falha/logout/etc), ip_address | Log de auth |
+
+### ONBOARDING — pipeline de cadastro de novos clientes.
+
+| Tabela | Colunas-chave | Uso |
+|---|---|---|
+| `hub_onboarding` | cnpj, razao_social, contato_email, etapa_atual (formulario→validacao_ia→aprovacao_docs→analise_credito→aprovacao_credito→ativacao→ativo), docs_status, credito_status, aprovador_docs_id, aprovador_credito_id, limite_sugerido, limite_aprovado, classificacao, tabela_preco_sugerida, resultado_validacao_ia (jsonb), dados_preenchidos_ia (jsonb), enderecos (jsonb), cliente_id, user_id, erp_cliente_id | Pipeline de onboarding (clientes novos) |
+| `hub_convites` | cliente_id, email, token (uuid unique), status (pendente/aceito/expirado/cancelado), criado_por, user_id, expira_em | Convites para clientes existentes (ja estao no ZEN/hub_clientes) |
+| `hub_analise_credito` | onboarding_id (nullable), solicitacao_id (nullable), cliente_id (nullable), fonte (manual/vadoo/serasa/credix), score, limite_sugerido, dados_brutos (jsonb), parecer, analisado_por | Analise de credito (serve onboarding E aumento de limite) |
+
+**Dois fluxos de ativacao:**
+- **Cliente novo** (nao existe no ZEN): pipeline completo hub_onboarding (formulario → IA → ADM → credito → financeiro → ZEN → ativacao)
+- **Cliente existente** (ja no ZEN/hub_clientes): admin cria convite → email com link → cliente aceita e define senha → ativo. Limite de credito ja vem do ZEN.
+
+**Aumento de limite:** Mesmo fluxo para novos e existentes — hub_solicitacoes_credito + hub_analise_credito → financeiro aprova.
 
 ### CONFIG — admin configura via painel.
 
