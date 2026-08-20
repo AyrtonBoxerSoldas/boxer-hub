@@ -423,7 +423,8 @@ function buildOnbActions(o) {
     if (['admin','manager','analyst'].includes(role)) {
       html = `
         <div class="action-bar">
-          <span style="font-size:12px;color:#718096;flex:1">Avancar para revisao de documentos</span>
+          <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Reprovar</button>
+          <span style="font-size:12px;color:#718096;flex:1;text-align:right">Avancar para revisao de documentos</span>
           <button class="btn btn-success btn-sm" onclick="avancarOnb('${o.id}','aprovacao_docs')">Enviar para Docs</button>
         </div>`;
     }
@@ -434,7 +435,7 @@ function buildOnbActions(o) {
       html = `
         <div class="form-row" style="margin-top:16px"><label>Observacoes (opcional)</label><textarea id="onbObs" rows="2" placeholder="Observacoes sobre os documentos..."></textarea></div>
         <div class="action-bar">
-          <button class="btn btn-danger btn-sm" onclick="rejeitarOnb('${o.id}')">Rejeitar</button>
+          <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Rejeitar</button>
           <button class="btn btn-success btn-sm" onclick="avancarOnb('${o.id}','validacao_ia',{aprovador_docs_id:getUserId(),aprovador_docs_observacoes:document.getElementById('onbObs').value})">Aprovar Documentos</button>
         </div>`;
     }
@@ -444,7 +445,8 @@ function buildOnbActions(o) {
     if (['admin','manager','analyst'].includes(role)) {
       html = `
         <div class="action-bar">
-          <span style="font-size:12px;color:#718096;flex:1">IA ainda nao implementada — avancar manualmente</span>
+          <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Reprovar</button>
+          <span style="font-size:12px;color:#718096;flex:1;text-align:right">IA ainda nao implementada — avancar manualmente</span>
           <button class="btn btn-warn btn-sm" onclick="avancarOnb('${o.id}','aprovacao_adm_vendas')">Pular IA (MVP)</button>
         </div>`;
     }
@@ -455,7 +457,7 @@ function buildOnbActions(o) {
       html = `
         <div class="form-row" style="margin-top:16px"><label>Observacoes ADM Vendas</label><textarea id="onbObsAdm" rows="2" placeholder="Parecer sobre o cadastro..."></textarea></div>
         <div class="action-bar">
-          <button class="btn btn-danger btn-sm" onclick="rejeitarOnb('${o.id}')">Rejeitar</button>
+          <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Rejeitar</button>
           <button class="btn btn-success btn-sm" onclick="avancarOnb('${o.id}','analise_credito',{aprovador_docs_id:getUserId(),aprovador_docs_observacoes:document.getElementById('onbObsAdm').value,docs_status:'aprovado',docs_aprovado_em:new Date().toISOString()})">Aprovar Cadastro</button>
         </div>`;
     }
@@ -465,7 +467,8 @@ function buildOnbActions(o) {
     if (['admin','manager','financial'].includes(role)) {
       html = `
         <div class="action-bar">
-          <span style="font-size:12px;color:#718096;flex:1">IA de credito ainda nao implementada — avancar para financeiro</span>
+          <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Reprovar</button>
+          <span style="font-size:12px;color:#718096;flex:1;text-align:right">IA de credito ainda nao implementada — avancar para financeiro</span>
           <button class="btn btn-warn btn-sm" onclick="avancarOnb('${o.id}','aprovacao_credito')">Enviar para Financeiro</button>
         </div>`;
     }
@@ -481,7 +484,7 @@ function buildOnbActions(o) {
         </div>
         <div class="form-row"><label>Observacoes Financeiro</label><textarea id="onbObsFin" rows="2" placeholder="Parecer sobre o credito..."></textarea></div>
         <div class="action-bar">
-          <button class="btn btn-danger btn-sm" onclick="rejeitarOnb('${o.id}')">Rejeitar</button>
+          <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Rejeitar</button>
           <button class="btn btn-success btn-sm" onclick="aprovarCredito('${o.id}')">Aprovar Credito</button>
         </div>`;
     }
@@ -522,16 +525,64 @@ async function avancarOnb(id, novaEtapa, extraFields) {
   }
 }
 
-async function rejeitarOnb(id) {
-  const motivo = prompt('Motivo da rejeicao:');
-  if (!motivo) return;
+function abrirRejeicao(id) {
+  const o = allOnboardings.find(x => x.id === id);
+  if (!o) return;
+  const etapaAtual = etapaLabel(o.etapa_atual);
+  const html = `
+    <h3 style="font-size:18px;margin-bottom:4px;color:#991b1b">Reprovar Cadastro</h3>
+    <div style="margin-bottom:16px">
+      <span style="font-size:13px;color:#718096">${o.razao_social} — Etapa: ${etapaAtual}</span>
+    </div>
+    <div class="form-row">
+      <label>Motivo da reprovacao *</label>
+      <textarea id="rejMotivo" rows="4" placeholder="Descreva os pontos que precisam ser corrigidos pelo cliente. Exemplo:&#10;- CNPJ invalido ou divergente&#10;- Contrato social ilegivel&#10;- Endereco incompleto" style="width:100%;font-family:Outfit,sans-serif;font-size:13px;padding:10px 12px;border:1px solid #fecaca;border-radius:6px;outline:none;resize:vertical"></textarea>
+      <div style="font-size:11px;color:#718096;margin-top:4px">O cliente recebera um email com estes pontos para poder corrigir e reenviar.</div>
+    </div>
+    <div class="form-actions" style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button class="btn btn-outline btn-sm" onclick="openOnbDetail('${id}')">Voltar</button>
+      <button class="btn btn-danger btn-sm" onclick="confirmarRejeicao('${id}')">Confirmar Reprovacao</button>
+    </div>
+  `;
+  openModal(html);
+}
+
+async function confirmarRejeicao(id) {
+  const motivo = (document.getElementById('rejMotivo')?.value || '').trim();
+  if (!motivo) { toast('Preencha o motivo da reprovacao', 'error'); return; }
+  const o = allOnboardings.find(x => x.id === id);
   try {
     await sb('/hub_onboarding?id=eq.' + id, 'PATCH', {
       etapa_atual: 'rejeitado',
       motivo_rejeicao: motivo,
       atualizado_em: new Date().toISOString()
     });
-    toast('Cadastro rejeitado');
+
+    await sb('/hub_log_alteracoes', 'POST', {
+      usuario_id: getUserId(), usuario_email: getUserEmail(),
+      tabela_ref: 'hub_onboarding', registro_id: id,
+      campo: 'etapa_atual', valor_anterior: o?.etapa_atual || '', valor_novo: 'rejeitado',
+      acao: 'rejeicao_onboarding'
+    });
+
+    if (o?.contato_email) {
+      fetch('/api/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: 'rejeicao',
+          dados: {
+            email: o.contato_email,
+            razao_social: o.razao_social,
+            cnpj: o.cnpj,
+            etapa: etapaLabel(o.etapa_atual),
+            motivo: motivo
+          }
+        })
+      }).catch(() => {});
+    }
+
+    toast('Cadastro reprovado. Email enviado ao cliente.');
     closeModal();
     await loadOnboardings();
   } catch (e) {

@@ -84,6 +84,27 @@ function buildEmail(tipo, d) {
         `
       };
 
+    case 'rejeicao':
+      return {
+        to: d.email,
+        subject: 'Cadastro Boxer Hub — Pendencias para correcao',
+        body: `
+          <p>Seu cadastro no <strong>Boxer Hub</strong> foi analisado pela equipe comercial da Boxer Soldas e precisa de ajustes antes de prosseguir.</p>
+          ${infoBox([
+            ['Empresa', d.razao_social],
+            ['CNPJ', d.cnpj],
+            ['Etapa', d.etapa]
+          ])}
+          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="font-size:13px;font-weight:600;color:#991b1b;margin:0 0 8px">Pontos a corrigir:</p>
+            <div style="font-size:13px;color:#991b1b;white-space:pre-line">${d.motivo}</div>
+          </div>
+          <p>Por favor, entre em contato com a equipe comercial ou submeta um novo cadastro com as correcoes indicadas.</p>
+          ${btnLink(HUB_URL + '/onboarding.html', 'Refazer Cadastro')}
+          <p style="font-size:12px;color:#718096;margin-top:16px">Em caso de duvidas, entre em contato pelo email comercial@boxersoldas.com.br.</p>
+        `
+      };
+
     case 'ativacao':
       return {
         to: d.email,
