@@ -76,13 +76,19 @@ body{font-family:Outfit,sans-serif;background:#f0f4f8;color:#1a202c;min-height:1
 .sub-options.show{display:block}
 .sub-options .option-group{margin-top:6px}
 
-/* Document checklist */
-.doc-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;background:#fff}
-.doc-item .doc-check{width:20px;height:20px;accent-color:#1d327b;cursor:pointer}
-.doc-item .doc-label{font-size:13px;font-weight:500;color:#1a202c;flex:1}
-.doc-item .doc-status{font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px}
+/* Document upload */
+.doc-item{padding:12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;background:#fff}
+.doc-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.doc-label{font-size:13px;font-weight:500;color:#1a202c}
+.doc-status{font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px}
 .doc-req{background:#fee2e2;color:#991b1b}
 .doc-opt{background:#f1f5f9;color:#475569}
+.doc-upload{display:flex;align-items:center;gap:8px}
+.doc-upload input[type=file]{font-family:Outfit,sans-serif;font-size:12px;color:#4a5568}
+.doc-upload input[type=file]::file-selector-button{background:#1d327b;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-family:Outfit,sans-serif;font-size:12px;font-weight:500;cursor:pointer;margin-right:8px}
+.doc-upload input[type=file]::file-selector-button:hover{background:#162666}
+.doc-ok{font-size:12px;color:#16a34a;font-weight:600;display:none}
+.doc-err{font-size:11px;color:#e30613;margin-top:4px;display:none}
 
 /* Review */
 .review-section{margin-bottom:16px;padding:14px;background:#f7fafc;border-radius:8px;border:1px solid #e2e8f0}
@@ -379,17 +385,51 @@ body{font-family:Outfit,sans-serif;background:#f0f4f8;color:#1a202c;min-height:1
   <!-- STEP 5: Documentos -->
   <div class="card step-content hidden" id="step5">
     <div class="card-title">Documentos Cadastrais</div>
-    <div class="card-subtitle">Marque os documentos que voce possui. O envio dos arquivos sera solicitado na proxima etapa.</div>
+    <div class="card-subtitle">Envie os documentos abaixo (PDF ou imagem, maximo 2MB cada)</div>
 
-    <div class="doc-item"><input type="checkbox" class="doc-check" id="docContrato"><label class="doc-label" for="docContrato">Contrato Social / Estatuto (vigente, assinado)</label><span class="doc-status doc-req">Obrigatorio</span></div>
-    <div class="doc-item"><input type="checkbox" class="doc-check" id="docCnpj"><label class="doc-label" for="docCnpj">Cartao CNPJ atualizado</label><span class="doc-status doc-req">Obrigatorio</span></div>
-    <div class="doc-item"><input type="checkbox" class="doc-check" id="docEndereco"><label class="doc-label" for="docEndereco">Comprovante de Endereco da empresa</label><span class="doc-status doc-req">Obrigatorio</span></div>
-    <div class="doc-item"><input type="checkbox" class="doc-check" id="docSocios"><label class="doc-label" for="docSocios">Documentos dos socios (RG e CPF)</label><span class="doc-status doc-req">Obrigatorio</span></div>
-    <div class="doc-item"><input type="checkbox" class="doc-check" id="docBalanco"><label class="doc-label" for="docBalanco">Balanco Patrimonial assinado</label><span class="doc-status doc-req">Obrigatorio</span></div>
-    <div class="doc-item"><input type="checkbox" class="doc-check" id="docDre"><label class="doc-label" for="docDre">DRE (ano atual e anterior)</label><span class="doc-status doc-req">Obrigatorio</span></div>
-    <div class="doc-item"><input type="checkbox" class="doc-check" id="docAlvara"><label class="doc-label" for="docAlvara">Alvara de Funcionamento</label><span class="doc-status doc-opt">Opcional</span></div>
+    <div class="doc-item" data-doc="contrato_social" data-req="true">
+      <div class="doc-header"><span class="doc-label">Contrato Social / Estatuto (vigente, assinado)</span><span class="doc-status doc-req">Obrigatorio</span></div>
+      <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'contrato_social')"><span class="doc-ok" id="ok_contrato_social">Enviado</span></div>
+      <div class="doc-err" id="err_contrato_social"></div>
+    </div>
 
-    <div class="hint" style="margin-top:12px">Apos o envio do formulario, nossa equipe entrara em contato para receber os arquivos dos documentos.</div>
+    <div class="doc-item" data-doc="cartao_cnpj" data-req="true">
+      <div class="doc-header"><span class="doc-label">Cartao CNPJ atualizado</span><span class="doc-status doc-req">Obrigatorio</span></div>
+      <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'cartao_cnpj')"><span class="doc-ok" id="ok_cartao_cnpj">Enviado</span></div>
+      <div class="doc-err" id="err_cartao_cnpj"></div>
+    </div>
+
+    <div class="doc-item" data-doc="comprovante_endereco" data-req="true">
+      <div class="doc-header"><span class="doc-label">Comprovante de Endereco da empresa</span><span class="doc-status doc-req">Obrigatorio</span></div>
+      <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'comprovante_endereco')"><span class="doc-ok" id="ok_comprovante_endereco">Enviado</span></div>
+      <div class="doc-err" id="err_comprovante_endereco"></div>
+    </div>
+
+    <div class="doc-item" data-doc="docs_socios" data-req="true">
+      <div class="doc-header"><span class="doc-label">Documentos dos socios (RG e CPF)</span><span class="doc-status doc-req">Obrigatorio</span></div>
+      <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'docs_socios')"><span class="doc-ok" id="ok_docs_socios">Enviado</span></div>
+      <div class="doc-err" id="err_docs_socios"></div>
+    </div>
+
+    <div class="doc-item" data-doc="balanco" data-req="true">
+      <div class="doc-header"><span class="doc-label">Balanco Patrimonial assinado</span><span class="doc-status doc-req">Obrigatorio</span></div>
+      <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'balanco')"><span class="doc-ok" id="ok_balanco">Enviado</span></div>
+      <div class="doc-err" id="err_balanco"></div>
+    </div>
+
+    <div class="doc-item" data-doc="dre" data-req="true">
+      <div class="doc-header"><span class="doc-label">DRE (ano atual e anterior)</span><span class="doc-status doc-req">Obrigatorio</span></div>
+      <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'dre')"><span class="doc-ok" id="ok_dre">Enviado</span></div>
+      <div class="doc-err" id="err_dre"></div>
+    </div>
+
+    <div class="doc-item" data-doc="alvara" data-req="false">
+      <div class="doc-header"><span class="doc-label">Alvara de Funcionamento</span><span class="doc-status doc-opt">Opcional</span></div>
+      <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'alvara')"><span class="doc-ok" id="ok_alvara">Enviado</span></div>
+      <div class="doc-err" id="err_alvara"></div>
+    </div>
+
+    <div class="hint" style="margin-top:12px">Formatos aceitos: PDF, JPG, PNG. Tamanho maximo: 2MB por arquivo.</div>
 
     <div class="form-actions">
       <button class="btn btn-outline" onclick="prevStep(4)">&#8592; Voltar</button>
@@ -433,6 +473,8 @@ body{font-family:Outfit,sans-serif;background:#f0f4f8;color:#1a202c;min-height:1
 let currentStep = 1;
 const answers = { q1: null, q2: null, q2_mkt: [], q3: null, q4: null, q5_perfil: [] };
 let repInfo = null;
+const uploadedDocs = {};
+const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
 // === STEPPER NAV ===
 
@@ -500,11 +542,11 @@ function validateStep(n) {
     if (!ok) showToast('Responda todas as perguntas sobre o perfil', 'error');
   }
   if (n === 5) {
-    const reqDocs = ['docContrato', 'docCnpj', 'docEndereco', 'docSocios', 'docBalanco', 'docDre'];
-    const missing = reqDocs.filter(id => !document.getElementById(id).checked);
+    const reqDocs = ['contrato_social', 'cartao_cnpj', 'comprovante_endereco', 'docs_socios', 'balanco', 'dre'];
+    const missing = reqDocs.filter(tipo => !uploadedDocs[tipo]);
     if (missing.length > 0) {
       ok = false;
-      showToast('Confirme que possui todos os documentos obrigatorios', 'error');
+      showToast('Envie todos os documentos obrigatorios (' + missing.length + ' faltando)', 'error');
     }
   }
   return ok;
@@ -735,14 +777,53 @@ function formatQ3(v) {
   return map[v] || v;
 }
 
+function handleDocUpload(input, tipo) {
+  const file = input.files[0];
+  const okEl = document.getElementById('ok_' + tipo);
+  const errEl = document.getElementById('err_' + tipo);
+  errEl.style.display = 'none';
+  okEl.style.display = 'none';
+
+  if (!file) { delete uploadedDocs[tipo]; return; }
+
+  if (file.size > MAX_FILE_SIZE) {
+    errEl.textContent = 'Arquivo muito grande (' + (file.size / 1024 / 1024).toFixed(1) + 'MB). Maximo 2MB.';
+    errEl.style.display = 'block';
+    input.value = '';
+    delete uploadedDocs[tipo];
+    return;
+  }
+
+  const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
+  if (!allowed.includes(file.type)) {
+    errEl.textContent = 'Formato nao aceito. Use PDF, JPG ou PNG.';
+    errEl.style.display = 'block';
+    input.value = '';
+    delete uploadedDocs[tipo];
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    uploadedDocs[tipo] = {
+      tipo: tipo,
+      nome: file.name,
+      mime_type: file.type,
+      base64: e.target.result.split(',')[1]
+    };
+    okEl.style.display = 'inline';
+  };
+  reader.readAsDataURL(file);
+}
+
 function buildDocReview() {
-  const docs = [
-    ['docContrato', 'Contrato Social'], ['docCnpj', 'Cartao CNPJ'], ['docEndereco', 'Comprovante Endereco'],
-    ['docSocios', 'Docs Socios'], ['docBalanco', 'Balanco'], ['docDre', 'DRE'], ['docAlvara', 'Alvara']
-  ];
-  return docs
-    .filter(([id]) => document.getElementById(id).checked)
-    .map(([, label]) => `<div class="review-row"><span class="review-label">${label}</span><span class="review-value" style="color:#16a34a">Confirmado</span></div>`)
+  const docLabels = {
+    contrato_social: 'Contrato Social', cartao_cnpj: 'Cartao CNPJ',
+    comprovante_endereco: 'Comprovante Endereco', docs_socios: 'Docs Socios',
+    balanco: 'Balanco', dre: 'DRE', alvara: 'Alvara'
+  };
+  return Object.entries(uploadedDocs)
+    .map(([tipo, doc]) => `<div class="review-row"><span class="review-label">${docLabels[tipo] || tipo}</span><span class="review-value" style="color:#16a34a">${doc.nome} (${(doc.base64.length * 0.75 / 1024).toFixed(0)}KB)</span></div>`)
     .join('');
 }
 
@@ -779,6 +860,8 @@ async function submitOnboarding() {
   };
 
   try {
+    const docsArray = Object.values(uploadedDocs);
+
     const result = await sbRpc('hub_fn_submeter_onboarding', {
       p_cnpj: gi('fCnpj').replace(/\D/g, ''),
       p_razao_social: gi('fRazao'),
@@ -792,7 +875,8 @@ async function submitOnboarding() {
       p_respostas_classificacao: respostas,
       p_classificacao: getClassification(),
       p_representante_nome: repInfo?.rep_bmax || null,
-      p_regiao: gi('fUf')
+      p_regiao: gi('fUf'),
+      p_documentos: docsArray
     });
 
     if (result.ok === false) {
