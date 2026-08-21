@@ -61,15 +61,18 @@ tbody tr:hover{background:#f0f7ff}
 .role-dealer{background:#6b7280;color:#fff}
 
 .etapa-badge{display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
-.etapa-formulario{background:#dbeafe;color:#1e40af}
-.etapa-aprovacao_docs{background:#fef3c7;color:#92400e}
 .etapa-validacao_ia{background:#e0e7ff;color:#3730a3}
-.etapa-aprovacao_adm_vendas{background:#fce7f3;color:#9d174d}
+.etapa-aprovacao_adm{background:#fce7f3;color:#9d174d}
 .etapa-analise_credito{background:#ccfbf1;color:#115e59}
-.etapa-aprovacao_credito{background:#fef3c7;color:#78350f}
+.etapa-aprovacao_financeiro{background:#fef3c7;color:#78350f}
 .etapa-ativacao{background:#d1fae5;color:#065f46}
 .etapa-ativo{background:#16a34a;color:#fff}
 .etapa-rejeitado{background:#fee2e2;color:#991b1b}
+.etapa-cancelado{background:#e5e7eb;color:#6b7280}
+.etapa-formulario{background:#dbeafe;color:#1e40af}
+.etapa-aprovacao_docs{background:#fef3c7;color:#92400e}
+.etapa-aprovacao_adm_vendas{background:#fce7f3;color:#9d174d}
+.etapa-aprovacao_credito{background:#fef3c7;color:#78350f}
 
 .filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
 .filter-btn{padding:6px 14px;border-radius:6px;border:1px solid #c3cfe2;background:#fff;font-family:Outfit;font-size:12px;font-weight:500;color:#4a5568;cursor:pointer}
@@ -241,15 +244,14 @@ function openNovaCampanha() {
 // === ONBOARDING ===
 
 const ETAPAS = [
-  { key: 'formulario', label: 'Formulario', short: 'Form' },
-  { key: 'aprovacao_docs', label: 'Aprovacao Docs', short: 'Docs' },
   { key: 'validacao_ia', label: 'Validacao IA', short: 'IA' },
-  { key: 'aprovacao_adm_vendas', label: 'ADM Vendas', short: 'ADM' },
+  { key: 'aprovacao_adm', label: 'ADM Vendas', short: 'ADM' },
   { key: 'analise_credito', label: 'Analise Credito', short: 'Credito' },
-  { key: 'aprovacao_credito', label: 'Financeiro', short: 'Fin' },
+  { key: 'aprovacao_financeiro', label: 'Financeiro', short: 'Fin' },
   { key: 'ativacao', label: 'Ativacao', short: 'Ativar' },
   { key: 'ativo', label: 'Ativo', short: 'Ativo' },
-  { key: 'rejeitado', label: 'Rejeitado', short: 'Rej' }
+  { key: 'rejeitado', label: 'Rejeitado', short: 'Rej' },
+  { key: 'cancelado', label: 'Cancelado', short: 'Canc' }
 ];
 
 let allOnboardings = [];
@@ -271,7 +273,7 @@ function renderOnbFilters() {
   const counts = {};
   ETAPAS.forEach(e => counts[e.key] = 0);
   allOnboardings.forEach(o => { if (counts[o.etapa_atual] !== undefined) counts[o.etapa_atual]++; });
-  const pendentes = allOnboardings.filter(o => !['ativo','rejeitado'].includes(o.etapa_atual)).length;
+  const pendentes = allOnboardings.filter(o => !['ativo','rejeitado','cancelado'].includes(o.etapa_atual)).length;
 
   let html = `<button class="filter-btn ${onbFilter === 'pendentes' ? 'active' : ''}" onclick="setOnbFilter('pendentes')">Pendentes<span class="filter-count">${pendentes}</span></button>`;
   html += `<button class="filter-btn ${onbFilter === 'todos' ? 'active' : ''}" onclick="setOnbFilter('todos')">Todos<span class="filter-count">${allOnboardings.length}</span></button>`;
@@ -291,7 +293,7 @@ function setOnbFilter(f) {
 
 function renderOnbList() {
   let list = allOnboardings;
-  if (onbFilter === 'pendentes') list = list.filter(o => !['ativo','rejeitado'].includes(o.etapa_atual));
+  if (onbFilter === 'pendentes') list = list.filter(o => !['ativo','rejeitado','cancelado'].includes(o.etapa_atual));
   else if (onbFilter !== 'todos') list = list.filter(o => o.etapa_atual === onbFilter);
 
   const wrap = document.getElementById('onboardingList');
@@ -419,63 +421,37 @@ function buildOnbActions(o) {
   const etapa = o.etapa_atual;
   let html = '';
 
-  if (etapa === 'formulario') {
-    if (['admin','manager','analyst'].includes(role)) {
-      html = `
-        <div class="action-bar">
-          <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Reprovar</button>
-          <span style="font-size:12px;color:#718096;flex:1;text-align:right">Avancar para revisao de documentos</span>
-          <button class="btn btn-success btn-sm" onclick="avancarOnb('${o.id}','aprovacao_docs')">Enviar para Docs</button>
-        </div>`;
-    }
-  }
-
-  if (etapa === 'aprovacao_docs') {
-    if (['admin','manager','analyst'].includes(role)) {
-      html = `
-        <div class="form-row" style="margin-top:16px"><label>Observacoes (opcional)</label><textarea id="onbObs" rows="2" placeholder="Observacoes sobre os documentos..."></textarea></div>
-        <div class="action-bar">
-          <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Rejeitar</button>
-          <button class="btn btn-success btn-sm" onclick="avancarOnb('${o.id}','validacao_ia',{aprovador_docs_id:getUserId(),aprovador_docs_observacoes:document.getElementById('onbObs').value})">Aprovar Documentos</button>
-        </div>`;
-    }
-  }
+  const cancelBtn = ['admin','manager'].includes(role) && !['ativo','rejeitado','cancelado'].includes(etapa)
+    ? `<button class="btn btn-outline btn-sm" style="color:#991b1b;border-color:#fecaca" onclick="cancelarOnb('${o.id}')">Cancelar</button>`
+    : '';
 
   if (etapa === 'validacao_ia') {
     if (['admin','manager','analyst'].includes(role)) {
       html = `
+        <div class="form-row" style="margin-top:16px"><label>Observacoes da Validacao (opcional)</label><textarea id="onbObsIA" rows="2" placeholder="Parecer sobre dados e documentos..."></textarea></div>
         <div class="action-bar">
+          ${cancelBtn}
           <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Reprovar</button>
-          <span style="font-size:12px;color:#718096;flex:1;text-align:right">IA ainda nao implementada — avancar manualmente</span>
-          <button class="btn btn-warn btn-sm" onclick="avancarOnb('${o.id}','aprovacao_adm_vendas')">Pular IA (MVP)</button>
+          <span style="font-size:12px;color:#718096;flex:1;text-align:right">MVP: validacao manual (IA futura)</span>
+          <button class="btn btn-success btn-sm" onclick="avancarOnb('${o.id}','aprovacao_adm',{aprovador_docs_id:getUserId(),aprovador_docs_observacoes:document.getElementById('onbObsIA').value,docs_status:'aprovado',docs_aprovado_em:new Date().toISOString()})">Aprovar Dados + Docs</button>
         </div>`;
     }
   }
 
-  if (etapa === 'aprovacao_adm_vendas') {
+  if (etapa === 'aprovacao_adm') {
     if (['admin','manager'].includes(role)) {
       html = `
         <div class="form-row" style="margin-top:16px"><label>Observacoes ADM Vendas</label><textarea id="onbObsAdm" rows="2" placeholder="Parecer sobre o cadastro..."></textarea></div>
         <div class="action-bar">
+          ${cancelBtn}
           <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Rejeitar</button>
-          <button class="btn btn-success btn-sm" onclick="avancarOnb('${o.id}','analise_credito',{aprovador_docs_id:getUserId(),aprovador_docs_observacoes:document.getElementById('onbObsAdm').value,docs_status:'aprovado',docs_aprovado_em:new Date().toISOString()})">Aprovar Cadastro</button>
+          <button class="btn btn-success btn-sm" onclick="avancarOnb('${o.id}','analise_credito',{aprovador_docs_observacoes:(document.getElementById('onbObsAdm').value||'')})">Aprovar Cadastro</button>
         </div>`;
     }
   }
 
   if (etapa === 'analise_credito') {
     if (['admin','manager','financial'].includes(role)) {
-      html = `
-        <div class="action-bar">
-          <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Reprovar</button>
-          <span style="font-size:12px;color:#718096;flex:1;text-align:right">IA de credito ainda nao implementada — avancar para financeiro</span>
-          <button class="btn btn-warn btn-sm" onclick="avancarOnb('${o.id}','aprovacao_credito')">Enviar para Financeiro</button>
-        </div>`;
-    }
-  }
-
-  if (etapa === 'aprovacao_credito') {
-    if (['admin','financial'].includes(role)) {
       html = `
         <div class="form-row" style="margin-top:16px">
           <label>Limite de Credito (R$)</label>
@@ -484,8 +460,28 @@ function buildOnbActions(o) {
         </div>
         <div class="form-row"><label>Observacoes Financeiro</label><textarea id="onbObsFin" rows="2" placeholder="Parecer sobre o credito..."></textarea></div>
         <div class="action-bar">
+          ${cancelBtn}
+          <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Reprovar</button>
+          <span style="font-size:12px;color:#718096;flex:1;text-align:right">MVP: analise manual (IA futura)</span>
+          <button class="btn btn-success btn-sm" onclick="aprovarCredito('${o.id}')">Enviar para Financeiro</button>
+        </div>`;
+    }
+  }
+
+  if (etapa === 'aprovacao_financeiro') {
+    if (['admin','financial'].includes(role)) {
+      const limitePreenchido = o.limite_sugerido || '';
+      html = `
+        <div class="form-row" style="margin-top:16px">
+          <label>Limite de Credito (R$)</label>
+          <input type="number" id="onbLimiteFin" placeholder="Ex: 10000.00" step="0.01" min="0" value="${limitePreenchido}">
+          <div style="font-size:11px;color:#718096;margin-top:3px">Revise o limite sugerido e ajuste se necessario.</div>
+        </div>
+        <div class="form-row"><label>Observacoes Financeiro</label><textarea id="onbObsFinAprova" rows="2" placeholder="Parecer final sobre o credito..."></textarea></div>
+        <div class="action-bar">
+          ${cancelBtn}
           <button class="btn btn-danger btn-sm" onclick="abrirRejeicao('${o.id}')">Rejeitar</button>
-          <button class="btn btn-success btn-sm" onclick="aprovarCredito('${o.id}')">Aprovar Credito</button>
+          <button class="btn btn-success btn-sm" onclick="aprovarFinanceiro('${o.id}')">Aprovar Credito</button>
         </div>`;
     }
   }
@@ -503,6 +499,7 @@ function buildOnbActions(o) {
           </ul>
         </div>
         <div class="action-bar">
+          ${cancelBtn}
           <span style="font-size:12px;color:#718096;flex:1">Email do cliente: <strong>${o.contato_email || '—'}</strong></span>
           <button class="btn btn-success btn-sm" onclick="confirmarAtivacao('${o.id}')">Ativar Cliente</button>
         </div>`;
@@ -596,6 +593,26 @@ async function aprovarCredito(id) {
   const obs = document.getElementById('onbObsFin').value;
   try {
     await sb('/hub_onboarding?id=eq.' + id, 'PATCH', {
+      etapa_atual: 'aprovacao_financeiro',
+      limite_sugerido: limite,
+      credito_status: 'em_analise',
+      aprovador_credito_observacoes: obs,
+      atualizado_em: new Date().toISOString()
+    });
+    toast('Enviado para aprovacao do Financeiro — limite sugerido R$ ' + limite.toLocaleString('pt-BR', {minimumFractionDigits:2}));
+    closeModal();
+    await loadOnboardings();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'error');
+  }
+}
+
+async function aprovarFinanceiro(id) {
+  const limite = parseFloat(document.getElementById('onbLimiteFin').value);
+  if (!limite || limite <= 0) { toast('Informe um limite valido', 'error'); return; }
+  const obs = document.getElementById('onbObsFinAprova').value;
+  try {
+    await sb('/hub_onboarding?id=eq.' + id, 'PATCH', {
       etapa_atual: 'ativacao',
       limite_aprovado: limite,
       credito_status: 'aprovado',
@@ -605,6 +622,50 @@ async function aprovarCredito(id) {
       atualizado_em: new Date().toISOString()
     });
     toast('Credito aprovado — R$ ' + limite.toLocaleString('pt-BR', {minimumFractionDigits:2}));
+    closeModal();
+    await loadOnboardings();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'error');
+  }
+}
+
+async function cancelarOnb(id) {
+  const o = allOnboardings.find(x => x.id === id);
+  if (!o) return;
+  openModal(`
+    <h3 style="font-size:18px;color:#991b1b;margin-bottom:16px">Cancelar Cadastro</h3>
+    <div style="margin-bottom:16px;font-size:13px;color:#4a5568">
+      <strong>${o.razao_social}</strong> — CNPJ: ${fmtCnpj(o.cnpj)}<br>
+      Etapa atual: ${etapaLabel(o.etapa_atual)}
+    </div>
+    <div class="form-row">
+      <label>Motivo do cancelamento *</label>
+      <textarea id="cancelMotivo" rows="3" placeholder="Descreva o motivo do cancelamento..." style="width:100%;font-family:Outfit,sans-serif;font-size:13px;padding:10px 12px;border:1px solid #fecaca;border-radius:6px;outline:none;resize:vertical"></textarea>
+    </div>
+    <div class="form-actions" style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button class="btn btn-outline btn-sm" onclick="openOnbDetail('${id}')">Voltar</button>
+      <button class="btn btn-danger btn-sm" onclick="confirmarCancelamento('${id}')">Confirmar Cancelamento</button>
+    </div>
+  `);
+}
+
+async function confirmarCancelamento(id) {
+  const motivo = (document.getElementById('cancelMotivo')?.value || '').trim();
+  if (!motivo) { toast('Preencha o motivo do cancelamento', 'error'); return; }
+  const o = allOnboardings.find(x => x.id === id);
+  try {
+    await sb('/hub_onboarding?id=eq.' + id, 'PATCH', {
+      etapa_atual: 'cancelado',
+      motivo_rejeicao: 'CANCELADO: ' + motivo,
+      atualizado_em: new Date().toISOString()
+    });
+    await sb('/hub_log_alteracoes', 'POST', {
+      usuario_id: getUserId(), usuario_email: getUserEmail(),
+      tabela_ref: 'hub_onboarding', registro_id: id,
+      campo: 'etapa_atual', valor_anterior: o?.etapa_atual || '', valor_novo: 'cancelado',
+      acao: 'cancelamento_onboarding'
+    });
+    toast('Cadastro cancelado.');
     closeModal();
     await loadOnboardings();
   } catch (e) {

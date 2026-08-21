@@ -411,23 +411,23 @@ body{font-family:Outfit,sans-serif;background:#f0f4f8;color:#1a202c;min-height:1
 
     <div style="margin:20px 0 10px;padding:10px 14px;background:#f0f4f8;border-radius:8px;border:1px solid #d0d8e8">
       <div style="font-size:12px;font-weight:600;color:#1d327b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Documentos Financeiros</div>
-      <div style="font-size:12px;color:#718096">Envie pelo menos um dos documentos abaixo</div>
+      <div style="font-size:12px;color:#718096">Balanco e DRE sao obrigatorios. Faturamento 12 meses e opcional.</div>
     </div>
 
-    <div class="doc-item" data-doc="balanco">
-      <div class="doc-header"><span class="doc-label">Balanco Patrimonial (assinado pelo contador)</span><span class="doc-status doc-opt">Min. 1</span></div>
+    <div class="doc-item" data-doc="balanco" data-req="true">
+      <div class="doc-header"><span class="doc-label">Balanco Patrimonial (assinado pelo contador)</span><span class="doc-status doc-req">Obrigatorio</span></div>
       <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'balanco')"><span class="doc-ok" id="ok_balanco">Enviado</span></div>
       <div class="doc-err" id="err_balanco"></div>
     </div>
 
-    <div class="doc-item" data-doc="dre">
-      <div class="doc-header"><span class="doc-label">DRE — ano atual e anterior (assinado pelo contador)</span><span class="doc-status doc-opt">Min. 1</span></div>
+    <div class="doc-item" data-doc="dre" data-req="true">
+      <div class="doc-header"><span class="doc-label">DRE — ano atual e anterior (assinado pelo contador)</span><span class="doc-status doc-req">Obrigatorio</span></div>
       <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'dre')"><span class="doc-ok" id="ok_dre">Enviado</span></div>
       <div class="doc-err" id="err_dre"></div>
     </div>
 
     <div class="doc-item" data-doc="faturamento_12m">
-      <div class="doc-header"><span class="doc-label">Relatorio de faturamento dos ultimos 12 meses (assinado pelo contador)</span><span class="doc-status doc-opt">Min. 1</span></div>
+      <div class="doc-header"><span class="doc-label">Relatorio de faturamento dos ultimos 12 meses (assinado pelo contador)</span><span class="doc-status doc-opt">Opcional</span></div>
       <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'faturamento_12m')"><span class="doc-ok" id="ok_faturamento_12m">Enviado</span></div>
       <div class="doc-err" id="err_faturamento_12m"></div>
     </div>
@@ -553,16 +553,11 @@ function validateStep(n) {
     if (!ok) showToast('Responda todas as perguntas sobre o perfil', 'error');
   }
   if (n === 5) {
-    const reqDocs = ['contrato_social', 'cartao_cnpj', 'comprovante_endereco'];
+    const reqDocs = ['contrato_social', 'cartao_cnpj', 'comprovante_endereco', 'balanco', 'dre'];
     const missing = reqDocs.filter(tipo => !uploadedDocs[tipo]);
     if (missing.length > 0) {
       ok = false;
       showToast('Envie todos os documentos obrigatorios (' + missing.length + ' faltando)', 'error');
-    }
-    const finDocs = ['balanco', 'dre', 'faturamento_12m'];
-    if (!finDocs.some(tipo => uploadedDocs[tipo])) {
-      ok = false;
-      showToast('Envie pelo menos um documento financeiro (Balanco, DRE ou Faturamento 12 meses)', 'error');
     }
   }
   return ok;
