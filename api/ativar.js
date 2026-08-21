@@ -84,7 +84,7 @@ module.exports = async function handler(req, res) {
           documentNumber: onb.cnpj,
           comments: 'Cadastro via Boxer Hub — Onboarding ' + onboarding_id.substring(0, 8)
         };
-        if (onb.inscricao_estadual) {
+        if (onb.inscricao_estadual && onb.inscricao_estadual !== 'ISENTO') {
           personBody.document2Type = 'BR_INSCRICAO_ESTADUAL';
           personBody.document2Number = onb.inscricao_estadual;
         }
