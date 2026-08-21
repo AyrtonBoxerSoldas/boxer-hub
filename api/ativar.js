@@ -80,6 +80,7 @@ module.exports = async function handler(req, res) {
           type: 'CORPORATION',
           name: onb.razao_social,
           fantasyName: onb.nome_fantasia || onb.razao_social,
+          nationality: { id: 1 },
           documentType: 'BR_CNPJ',
           documentNumber: onb.cnpj,
           comments: 'Cadastro via Boxer Hub — Onboarding ' + onboarding_id.substring(0, 8)
