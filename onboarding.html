@@ -181,8 +181,11 @@ body{font-family:Outfit,sans-serif;background:#f0f4f8;color:#1a202c;min-height:1
       </div>
       <div class="form-grid">
         <div class="form-row">
-          <label>Inscricao Estadual <span class="req">*</span></label>
+          <label>Inscricao Estadual</label>
           <input type="text" id="fIe" placeholder="000.000.000.000">
+          <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;text-transform:none;letter-spacing:0;cursor:pointer;color:#4a5568">
+            <input type="checkbox" id="fIeIsento" onchange="toggleIeIsento(this)" style="width:auto;padding:0"> Isento / Nao possui inscricao estadual
+          </label>
         </div>
         <div class="form-row">
           <label>Email Principal <span class="req">*</span></label>
@@ -368,6 +371,7 @@ body{font-family:Outfit,sans-serif;background:#f0f4f8;color:#1a202c;min-height:1
         <button class="option-btn" onclick="toggleMulti(this,'q5_perfil')">Distribuicao</button>
         <button class="option-btn" onclick="toggleMulti(this,'q5_perfil')">Apenas Retirada</button>
         <button class="option-btn" onclick="toggleMulti(this,'q5_perfil')">Assistencia Tecnica</button>
+        <button class="option-btn" onclick="toggleMulti(this,'q5_perfil')">Online / E-commerce</button>
       </div>
     </div>
 
@@ -405,31 +409,30 @@ body{font-family:Outfit,sans-serif;background:#f0f4f8;color:#1a202c;min-height:1
       <div class="doc-err" id="err_comprovante_endereco"></div>
     </div>
 
-    <div class="doc-item" data-doc="docs_socios" data-req="true">
-      <div class="doc-header"><span class="doc-label">Documentos dos socios (RG e CPF)</span><span class="doc-status doc-req">Obrigatorio</span></div>
-      <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'docs_socios')"><span class="doc-ok" id="ok_docs_socios">Enviado</span></div>
-      <div class="doc-err" id="err_docs_socios"></div>
+    <div style="margin:20px 0 10px;padding:10px 14px;background:#f0f4f8;border-radius:8px;border:1px solid #d0d8e8">
+      <div style="font-size:12px;font-weight:600;color:#1d327b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Documentos Financeiros</div>
+      <div style="font-size:12px;color:#718096">Envie pelo menos um dos documentos abaixo</div>
     </div>
 
-    <div class="doc-item" data-doc="balanco" data-req="true">
-      <div class="doc-header"><span class="doc-label">Balanco Patrimonial assinado</span><span class="doc-status doc-req">Obrigatorio</span></div>
+    <div class="doc-item" data-doc="balanco">
+      <div class="doc-header"><span class="doc-label">Balanco Patrimonial (assinado pelo contador)</span><span class="doc-status doc-opt">Min. 1</span></div>
       <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'balanco')"><span class="doc-ok" id="ok_balanco">Enviado</span></div>
       <div class="doc-err" id="err_balanco"></div>
     </div>
 
-    <div class="doc-item" data-doc="dre" data-req="true">
-      <div class="doc-header"><span class="doc-label">DRE (ano atual e anterior)</span><span class="doc-status doc-req">Obrigatorio</span></div>
+    <div class="doc-item" data-doc="dre">
+      <div class="doc-header"><span class="doc-label">DRE — ano atual e anterior (assinado pelo contador)</span><span class="doc-status doc-opt">Min. 1</span></div>
       <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'dre')"><span class="doc-ok" id="ok_dre">Enviado</span></div>
       <div class="doc-err" id="err_dre"></div>
     </div>
 
-    <div class="doc-item" data-doc="alvara" data-req="false">
-      <div class="doc-header"><span class="doc-label">Alvara de Funcionamento</span><span class="doc-status doc-opt">Opcional</span></div>
-      <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'alvara')"><span class="doc-ok" id="ok_alvara">Enviado</span></div>
-      <div class="doc-err" id="err_alvara"></div>
+    <div class="doc-item" data-doc="faturamento_12m">
+      <div class="doc-header"><span class="doc-label">Relatorio de faturamento dos ultimos 12 meses (assinado pelo contador)</span><span class="doc-status doc-opt">Min. 1</span></div>
+      <div class="doc-upload"><input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="handleDocUpload(this,'faturamento_12m')"><span class="doc-ok" id="ok_faturamento_12m">Enviado</span></div>
+      <div class="doc-err" id="err_faturamento_12m"></div>
     </div>
 
-    <div class="hint" style="margin-top:12px">Formatos aceitos: PDF, JPG, PNG. Tamanho maximo: 2MB por arquivo.</div>
+    <div class="hint" style="margin-top:12px">Formatos aceitos: PDF, JPG, PNG. Tamanho maximo: 2MB por arquivo.<br>Todos os documentos devem conter assinatura e carimbo do contador responsavel.</div>
 
     <div class="form-actions">
       <button class="btn btn-outline" onclick="prevStep(4)">&#8592; Voltar</button>
@@ -507,13 +510,21 @@ function validateStep(n) {
 
   if (n === 1) {
     if (!v('fCnpj')) ok = false;
+    else if (!validarCnpj(gi('fCnpj'))) {
+      document.getElementById('fCnpj').classList.add('err');
+      ok = false;
+    }
     if (!v('fRazao')) ok = false;
     if (!v('fFantasia')) ok = false;
-    if (!v('fIe')) ok = false;
+    const ieIsento = document.getElementById('fIeIsento').checked;
+    if (!ieIsento && !v('fIe')) ok = false;
     if (!v('fEmail')) ok = false;
     if (!v('fTelefone')) ok = false;
     if (!v('fNomeResp')) ok = false;
-    if (!ok) showToast('Preencha todos os campos obrigatorios', 'error');
+    if (!ok) {
+      const cnpjInvalido = document.getElementById('fCnpj').classList.contains('err') && gi('fCnpj');
+      showToast(cnpjInvalido ? 'CNPJ invalido — verifique os digitos' : 'Preencha todos os campos obrigatorios', 'error');
+    }
   }
   if (n === 2) {
     if (!v('fCep')) ok = false;
@@ -542,11 +553,16 @@ function validateStep(n) {
     if (!ok) showToast('Responda todas as perguntas sobre o perfil', 'error');
   }
   if (n === 5) {
-    const reqDocs = ['contrato_social', 'cartao_cnpj', 'comprovante_endereco', 'docs_socios', 'balanco', 'dre'];
+    const reqDocs = ['contrato_social', 'cartao_cnpj', 'comprovante_endereco'];
     const missing = reqDocs.filter(tipo => !uploadedDocs[tipo]);
     if (missing.length > 0) {
       ok = false;
       showToast('Envie todos os documentos obrigatorios (' + missing.length + ' faltando)', 'error');
+    }
+    const finDocs = ['balanco', 'dre', 'faturamento_12m'];
+    if (!finDocs.some(tipo => uploadedDocs[tipo])) {
+      ok = false;
+      showToast('Envie pelo menos um documento financeiro (Balanco, DRE ou Faturamento 12 meses)', 'error');
     }
   }
   return ok;
@@ -563,11 +579,49 @@ function clearErrors() {
   document.querySelectorAll('.err').forEach(el => el.classList.remove('err'));
 }
 
+// === CNPJ VALIDATION ===
+
+function validarCnpj(cnpj) {
+  const raw = cnpj.replace(/\D/g, '');
+  if (raw.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(raw)) return false;
+  const pesos1 = [5,4,3,2,9,8,7,6,5,4,3,2];
+  const pesos2 = [6,5,4,3,2,9,8,7,6,5,4,3,2];
+  let soma = 0;
+  for (let i = 0; i < 12; i++) soma += parseInt(raw[i]) * pesos1[i];
+  let resto = soma % 11;
+  const d1 = resto < 2 ? 0 : 11 - resto;
+  if (parseInt(raw[12]) !== d1) return false;
+  soma = 0;
+  for (let i = 0; i < 13; i++) soma += parseInt(raw[i]) * pesos2[i];
+  resto = soma % 11;
+  const d2 = resto < 2 ? 0 : 11 - resto;
+  return parseInt(raw[13]) === d2;
+}
+
+// === IE ISENTO ===
+
+function toggleIeIsento(cb) {
+  const input = document.getElementById('fIe');
+  if (cb.checked) {
+    input.value = '';
+    input.disabled = true;
+    input.style.background = '#f0f4f8';
+    input.style.opacity = '0.6';
+    input.classList.remove('err');
+  } else {
+    input.disabled = false;
+    input.style.background = '';
+    input.style.opacity = '';
+  }
+}
+
 // === CNPJ LOOKUP (BrasilAPI) ===
 
 async function lookupCnpj() {
   const raw = document.getElementById('fCnpj').value.replace(/\D/g, '');
   if (raw.length !== 14) { showCnpjStatus('CNPJ deve ter 14 digitos', 'err'); return; }
+  if (!validarCnpj(raw)) { showCnpjStatus('CNPJ invalido — verifique os digitos', 'err'); return; }
 
   showCnpjStatus('Buscando dados do CNPJ...', 'loading');
   document.getElementById('btnLookup').disabled = true;
@@ -663,34 +717,29 @@ function toggleSub(id, show) {
   else el.classList.remove('show');
 }
 
-function updateClassification() {
+function calcClassification() {
   const lojaFisica = answers.q1 === 'sim';
   const marketplace = answers.q2 === 'sim';
   const site = answers.q4 === 'sim';
-  const online = marketplace || site;
+  const perfilOnline = answers.q5_perfil.includes('Online / E-commerce');
+  const online = marketplace || site || perfilOnline;
 
-  let cls = null;
-  if (online && !lojaFisica) cls = 'ecommerce';
-  else if (lojaFisica && online) cls = 'hibrido';
-  else if (lojaFisica && !online) cls = 'varejo';
+  if (online && !lojaFisica) return 'ecommerce';
+  if (lojaFisica && online) return 'hibrido';
+  return 'varejo';
+}
 
+function updateClassification() {
   const el = document.getElementById('classResult');
   const tag = document.getElementById('classTag');
-  if (cls) {
-    el.className = 'class-result show class-' + cls;
-    tag.textContent = cls === 'ecommerce' ? 'E-commerce' : cls === 'hibrido' ? 'Hibrido' : 'Varejo';
-  } else {
-    el.className = 'class-result';
-  }
+  if (!answers.q1) { el.className = 'class-result'; return; }
+  const cls = calcClassification();
+  el.className = 'class-result show class-' + cls;
+  tag.textContent = cls === 'ecommerce' ? 'E-commerce' : cls === 'hibrido' ? 'Hibrido' : 'Varejo';
 }
 
 function getClassification() {
-  const lojaFisica = answers.q1 === 'sim';
-  const online = answers.q2 === 'sim' || answers.q4 === 'sim';
-  if (online && !lojaFisica) return 'ecommerce';
-  if (lojaFisica && online) return 'hibrido';
-  if (lojaFisica && !online) return 'varejo';
-  return null;
+  return calcClassification();
 }
 
 // === MASKS ===
@@ -735,7 +784,7 @@ function buildReview() {
       <div class="review-row"><span class="review-label">CNPJ</span><span class="review-value">${gi('fCnpj')}</span></div>
       <div class="review-row"><span class="review-label">Razao Social</span><span class="review-value">${gi('fRazao')}</span></div>
       <div class="review-row"><span class="review-label">Nome da Fachada</span><span class="review-value">${gi('fFantasia')}</span></div>
-      <div class="review-row"><span class="review-label">IE</span><span class="review-value">${gi('fIe')}</span></div>
+      <div class="review-row"><span class="review-label">IE</span><span class="review-value">${document.getElementById('fIeIsento').checked ? 'Isento' : gi('fIe')}</span></div>
       <div class="review-row"><span class="review-label">Email</span><span class="review-value">${gi('fEmail')}</span></div>
       <div class="review-row"><span class="review-label">Telefone</span><span class="review-value">${gi('fTelefone')}</span></div>
       <div class="review-row"><span class="review-label">Responsavel</span><span class="review-value">${gi('fNomeResp')}</span></div>
@@ -819,8 +868,8 @@ function handleDocUpload(input, tipo) {
 function buildDocReview() {
   const docLabels = {
     contrato_social: 'Contrato Social', cartao_cnpj: 'Cartao CNPJ',
-    comprovante_endereco: 'Comprovante Endereco', docs_socios: 'Docs Socios',
-    balanco: 'Balanco', dre: 'DRE', alvara: 'Alvara'
+    comprovante_endereco: 'Comprovante Endereco',
+    balanco: 'Balanco Patrimonial', dre: 'DRE', faturamento_12m: 'Faturamento 12 meses'
   };
   return Object.entries(uploadedDocs)
     .map(([tipo, doc]) => `<div class="review-row"><span class="review-label">${docLabels[tipo] || tipo}</span><span class="review-value" style="color:#16a34a">${doc.nome} (${(doc.base64.length * 0.75 / 1024).toFixed(0)}KB)</span></div>`)
@@ -866,7 +915,7 @@ async function submitOnboarding() {
       p_cnpj: gi('fCnpj').replace(/\D/g, ''),
       p_razao_social: gi('fRazao'),
       p_nome_fantasia: gi('fFantasia'),
-      p_inscricao_estadual: gi('fIe'),
+      p_inscricao_estadual: document.getElementById('fIeIsento').checked ? 'ISENTO' : gi('fIe'),
       p_contato_nome: gi('fNomeResp'),
       p_contato_email: gi('fEmail'),
       p_contato_telefone: gi('fTelefone'),
