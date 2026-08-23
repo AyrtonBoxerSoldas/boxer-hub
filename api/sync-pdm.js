@@ -1,16 +1,14 @@
 const HUB_URL = 'https://bmepxcnrsofofoswubuu.supabase.co';
 const PDM_URL = 'https://tufbuyfwysowgkxsvjmh.supabase.co';
-const PDM_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR1ZmJ1eWZ3eXNvd2dreHN2am1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMzU5MzQsImV4cCI6MjA5NjgxMTkzNH0.g-tSpblow0N_lbX-g3W3sTC7-Gq0Jdi08saane63gIE';
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const SB_SERVICE = process.env.SUPABASE_SERVICE_KEY;
-  const PDM_EMAIL = process.env.PDM_SYNC_EMAIL;
-  const PDM_PASSWORD = process.env.PDM_SYNC_PASSWORD;
+  const PDM_SERVICE = process.env.PDM_SERVICE_KEY;
 
   if (!SB_SERVICE) return res.status(500).json({ error: 'SUPABASE_SERVICE_KEY nao configurada' });
-  if (!PDM_EMAIL || !PDM_PASSWORD) return res.status(500).json({ error: 'PDM_SYNC_EMAIL ou PDM_SYNC_PASSWORD nao configuradas' });
+  if (!PDM_SERVICE) return res.status(500).json({ error: 'PDM_SERVICE_KEY nao configurada' });
 
   const cronSecret = req.headers['x-cron-secret'];
   const authHeader = req.headers.authorization;
@@ -49,31 +47,23 @@ module.exports = async function handler(req, res) {
     };
   }
 
+  const pdmH = {
+    'apikey': PDM_SERVICE,
+    'Authorization': 'Bearer ' + PDM_SERVICE
+  };
+
   try {
-    // 1 — Autenticar no PDM
-    const pdmAuthRes = await fetch(PDM_URL + '/auth/v1/token?grant_type=password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': PDM_ANON },
-      body: JSON.stringify({ email: PDM_EMAIL, password: PDM_PASSWORD })
-    });
-    const pdmAuth = await pdmAuthRes.json();
-    if (!pdmAuth.access_token) {
-      return res.status(500).json({ error: 'Falha ao autenticar no PDM', detail: pdmAuth.error_description || pdmAuth.msg });
-    }
-
-    const pdmH = { 'apikey': PDM_ANON, 'Authorization': 'Bearer ' + pdmAuth.access_token };
-
-    // 2 — Buscar produtos ativos do PDM
+    // 1 — Produtos ativos do PDM
     const prodRes = await fetch(PDM_URL + '/rest/v1/produtos?status=eq.Ativo&select=*&order=codigo', { headers: pdmH });
     if (!prodRes.ok) throw new Error('Erro ao buscar produtos PDM: ' + prodRes.status);
     const pdmProdutos = await prodRes.json();
 
-    // 3 — Buscar documentos ativos do PDM
+    // 2 — Documentos ativos do PDM
     const docRes = await fetch(PDM_URL + '/rest/v1/documentos?ativo=eq.true&select=id,produto_id,nome,tipo,arquivo_url,revisao', { headers: pdmH });
     if (!docRes.ok) throw new Error('Erro ao buscar documentos PDM: ' + docRes.status);
     const pdmDocs = await docRes.json();
 
-    // 4 — Sincronizar categorias
+    // 3 — Sincronizar categorias
     const catSet = new Set();
     const subMap = {};
     pdmProdutos.forEach(p => {
@@ -129,7 +119,7 @@ module.exports = async function handler(req, res) {
 
     subcategorias.forEach(c => catLookup[c.nome] = c.id);
 
-    // 5 — Sincronizar produtos
+    // 4 — Sincronizar produtos
     const pdmIdToSku = {};
     pdmProdutos.forEach(p => pdmIdToSku[p.id] = p.codigo);
 
@@ -175,7 +165,7 @@ module.exports = async function handler(req, res) {
     const skuToHubId = {};
     hubProdutos.forEach(p => skuToHubId[p.sku] = p.id);
 
-    // 6 — Sincronizar anexos
+    // 5 — Sincronizar anexos
     // Limpar anexos anteriores do PDM (identificados pela URL de origem)
     await fetch(
       HUB_URL + '/rest/v1/hub_produto_anexos?storage_path=like.https://tufbuyfwysowgkxsvjmh*',
