@@ -103,6 +103,7 @@ select,input,textarea{font-family:Outfit,sans-serif}
   <div class="tab" onclick="showTab('campanhas',this)">Campanhas</div>
   <div class="tab" onclick="showTab('precos',this)">Tabelas de Preco</div>
   <div class="tab" onclick="showTab('regras',this)">Regras Comerciais</div>
+  <div class="tab" onclick="showTab('catalogo',this)">Catalogo</div>
   <div class="tab" onclick="showTab('convites',this)">Convites</div>
   <div class="tab" onclick="showTab('logs',this)">Logs</div>
 </div>
@@ -136,6 +137,34 @@ select,input,textarea{font-family:Outfit,sans-serif}
     <div class="page-header"><h2 class="page-title">Regras Comerciais</h2></div>
     <div id="regrasList"></div>
   </div>
+  <div class="panel-content hidden" id="tab-catalogo">
+    <div class="page-header">
+      <h2 class="page-title">Catalogo de Produtos</h2>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="syncStatus" style="font-size:12px;color:#718096"></span>
+        <button class="btn btn-primary" onclick="syncPDM()" id="btnSync">Sincronizar PDM</button>
+      </div>
+    </div>
+    <div id="catalogoStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+      <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:24px;font-weight:700;color:#1d327b" id="statProdutos">--</div>
+        <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Produtos</div>
+      </div>
+      <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:24px;font-weight:700;color:#1d327b" id="statCategorias">--</div>
+        <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Categorias</div>
+      </div>
+      <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:24px;font-weight:700;color:#1d327b" id="statAnexos">--</div>
+        <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Anexos</div>
+      </div>
+      <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:24px;font-weight:700;color:#1d327b" id="statComFoto">--</div>
+        <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Com Foto</div>
+      </div>
+    </div>
+    <div id="catalogoList"></div>
+  </div>
   <div class="panel-content hidden" id="tab-convites">
     <div class="page-header">
       <h2 class="page-title">Convites para Clientes Existentes</h2>
@@ -160,6 +189,7 @@ function showTab(n, el) {
   el.classList.add('active');
   if (n === 'convites') loadConvites();
   if (n === 'usuarios') loadUsuarios();
+  if (n === 'catalogo') loadCatalogo();
 }
 
 (async () => {
@@ -951,6 +981,86 @@ async function criarConvite() {
 function copiarLinkConvite(token) {
   const link = window.location.origin + '/convite.html?token=' + token;
   navigator.clipboard.writeText(link).then(() => toast('Link copiado!')).catch(() => toast('Erro ao copiar', 'error'));
+}
+
+async function loadCatalogo() {
+  const wrap = document.getElementById('catalogoList');
+  try {
+    const [produtos, categorias, anexos] = await Promise.all([
+      sb('/hub_produtos?select=id,sku,nome,categoria_id,ativo,atualizado_em&order=nome.asc&ativo=eq.true'),
+      sb('/hub_categorias?select=id,nome,slug,categoria_pai_id&ativo=eq.true&order=nome.asc'),
+      sb('/hub_produto_anexos?select=produto_id,tipo&tipo=eq.foto')
+    ]);
+
+    document.getElementById('statProdutos').textContent = produtos.length;
+    document.getElementById('statCategorias').textContent = categorias.length;
+
+    const fotosPorProduto = {};
+    anexos.forEach(a => { fotosPorProduto[a.produto_id] = (fotosPorProduto[a.produto_id] || 0) + 1; });
+    const comFoto = Object.keys(fotosPorProduto).length;
+
+    sb('/hub_produto_anexos?select=id').then(all => {
+      document.getElementById('statAnexos').textContent = all.length;
+    });
+    document.getElementById('statComFoto').textContent = comFoto;
+
+    const catMap = {};
+    categorias.forEach(c => catMap[c.id] = c.nome);
+
+    if (!produtos.length) {
+      wrap.innerHTML = '<div class="empty-state"><h3>Nenhum produto sincronizado</h3><p style="margin-top:8px;color:#a0aec0">Clique em "Sincronizar PDM" para importar o catalogo</p></div>';
+      return;
+    }
+
+    wrap.innerHTML = '<div style="overflow-x:auto"><table>' +
+      '<thead><tr><th>SKU</th><th>Nome</th><th>Categoria</th><th>Fotos</th><th>Atualizado</th></tr></thead>' +
+      '<tbody>' + produtos.map(p => {
+        const cat = catMap[p.categoria_id] || '—';
+        const fotos = fotosPorProduto[p.id] || 0;
+        const atualizado = p.atualizado_em ? new Date(p.atualizado_em).toLocaleDateString('pt-BR') : '—';
+        return '<tr>' +
+          '<td><code style="font-size:12px;background:#f0f4f8;padding:2px 6px;border-radius:4px">' + p.sku + '</code></td>' +
+          '<td><strong>' + p.nome + '</strong></td>' +
+          '<td>' + cat + '</td>' +
+          '<td>' + (fotos > 0 ? '<span style="color:#16a34a;font-weight:600">' + fotos + '</span>' : '<span style="color:#a0aec0">0</span>') + '</td>' +
+          '<td style="color:#718096;font-size:12px">' + atualizado + '</td>' +
+          '</tr>';
+      }).join('') + '</tbody></table></div>';
+
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty-state"><h3>Erro ao carregar catalogo</h3><p>' + e.message + '</p></div>';
+  }
+}
+
+async function syncPDM() {
+  const btn = document.getElementById('btnSync');
+  const status = document.getElementById('syncStatus');
+  btn.disabled = true;
+  btn.textContent = 'Sincronizando...';
+  status.textContent = '';
+
+  try {
+    const res = await fetch('/api/sync-pdm', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SESSION.access_token
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro desconhecido');
+
+    toast(data.produtos_sincronizados + ' produtos, ' + data.anexos_sincronizados + ' anexos sincronizados');
+    status.textContent = 'Ultima sync: ' + new Date().toLocaleTimeString('pt-BR');
+    await loadCatalogo();
+  } catch (e) {
+    toast('Erro no sync: ' + e.message, 'error');
+    status.textContent = 'Erro na sincronizacao';
+    status.style.color = '#e30613';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sincronizar PDM';
+  }
 }
 
 async function cancelarConvite(id) {
