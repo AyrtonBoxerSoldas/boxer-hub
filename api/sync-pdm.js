@@ -166,15 +166,13 @@ module.exports = async function handler(req, res) {
     hubProdutos.forEach(p => skuToHubId[p.sku] = p.id);
 
     // 5 — Sincronizar anexos
-    // Limpar anexos anteriores do PDM (identificados pela URL de origem)
-    await fetch(
-      HUB_URL + '/rest/v1/hub_produto_anexos?storage_path=like.https://tufbuyfwysowgkxsvjmh*',
-      { method: 'DELETE', headers: hubH('DELETE') }
-    );
-    await fetch(
-      HUB_URL + '/rest/v1/hub_produto_anexos?storage_path=like.https://boxersoldasbr.sharepoint.com*',
-      { method: 'DELETE', headers: hubH('DELETE') }
-    );
+    // Limpar TODOS anexos dos produtos sincronizados (por produto_id)
+    for (let i = 0; i < hubProdutos.length; i += 50) {
+      const ids = hubProdutos.slice(i, i + 50).map(p => p.id).join(',');
+      await fetch(HUB_URL + '/rest/v1/hub_produto_anexos?produto_id=in.(' + ids + ')', {
+        method: 'DELETE', headers: hubH('DELETE')
+      });
+    }
 
     const TIPO_MAP = {
       'Artworks': 'foto',
@@ -215,14 +213,21 @@ module.exports = async function handler(req, res) {
     });
 
     let anexosCount = 0;
-    for (let i = 0; i < anexoBodies.length; i += 200) {
-      const batch = anexoBodies.slice(i, i + 200);
+    const anexoErrors = [];
+    for (let i = 0; i < anexoBodies.length; i += 50) {
+      const batch = anexoBodies.slice(i, i + 50);
       const aRes = await fetch(HUB_URL + '/rest/v1/hub_produto_anexos', {
         method: 'POST',
         headers: hubH('POST'),
         body: JSON.stringify(batch)
       });
-      if (aRes.ok) anexosCount += batch.length;
+      if (aRes.ok) {
+        anexosCount += batch.length;
+      } else {
+        const errText = await aRes.text();
+        console.error('Batch anexos ' + i + ' falhou (' + aRes.status + '):', errText);
+        anexoErrors.push({ batch: i, status: aRes.status, detail: errText.substring(0, 300) });
+      }
     }
 
     return res.status(200).json({
@@ -231,6 +236,8 @@ module.exports = async function handler(req, res) {
       categorias: categorias.length,
       subcategorias: subcategorias.length,
       anexos_sincronizados: anexosCount,
+      anexos_total_tentados: anexoBodies.length,
+      anexo_errors: anexoErrors.length > 0 ? anexoErrors : undefined,
       timestamp: new Date().toISOString()
     });
 

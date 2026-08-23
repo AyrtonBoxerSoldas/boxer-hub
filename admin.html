@@ -145,23 +145,36 @@ select,input,textarea{font-family:Outfit,sans-serif}
         <button class="btn btn-primary" onclick="syncPDM()" id="btnSync">Sincronizar PDM</button>
       </div>
     </div>
-    <div id="catalogoStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+    <div id="catalogoStats" style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px">
       <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center">
         <div style="font-size:24px;font-weight:700;color:#1d327b" id="statProdutos">--</div>
         <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Produtos</div>
       </div>
       <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center">
-        <div style="font-size:24px;font-weight:700;color:#1d327b" id="statCategorias">--</div>
-        <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Categorias</div>
+        <div style="font-size:24px;font-weight:700;color:#1d327b" id="statNaTabela">--</div>
+        <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Na Tabela Preco</div>
       </div>
       <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center">
-        <div style="font-size:24px;font-weight:700;color:#1d327b" id="statAnexos">--</div>
-        <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Anexos</div>
+        <div style="font-size:24px;font-weight:700;color:#1d327b" id="statComPDM">--</div>
+        <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Com Dados PDM</div>
       </div>
       <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center">
         <div style="font-size:24px;font-weight:700;color:#1d327b" id="statComFoto">--</div>
         <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Com Foto</div>
       </div>
+      <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:24px;font-weight:700;color:#1d327b" id="statAnexos">--</div>
+        <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Anexos</div>
+      </div>
+    </div>
+    <div id="catalogoAlertas" style="margin-bottom:16px"></div>
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+      <span style="font-size:12px;color:#718096;font-weight:500">FILTRAR:</span>
+      <button class="btn btn-sm btn-outline catFilter active" data-filter="todos" onclick="filterCatalogo('todos',this)">Todos</button>
+      <button class="btn btn-sm btn-outline catFilter" data-filter="sem-foto" onclick="filterCatalogo('sem-foto',this)">Sem foto</button>
+      <button class="btn btn-sm btn-outline catFilter" data-filter="sem-descricao" onclick="filterCatalogo('sem-descricao',this)">Sem descricao</button>
+      <button class="btn btn-sm btn-outline catFilter" data-filter="sem-preco" onclick="filterCatalogo('sem-preco',this)">Sem preco</button>
+      <button class="btn btn-sm btn-outline catFilter" data-filter="sem-pdm" onclick="filterCatalogo('sem-pdm',this)">Sem dados PDM</button>
     </div>
     <div id="catalogoList"></div>
   </div>
@@ -983,53 +996,114 @@ function copiarLinkConvite(token) {
   navigator.clipboard.writeText(link).then(() => toast('Link copiado!')).catch(() => toast('Erro ao copiar', 'error'));
 }
 
+let _catalogoData = null;
+
 async function loadCatalogo() {
   const wrap = document.getElementById('catalogoList');
   try {
-    const [produtos, categorias, anexos] = await Promise.all([
-      sb('/hub_produtos?select=id,sku,nome,categoria_id,ativo,atualizado_em&order=nome.asc&ativo=eq.true'),
+    const [produtos, categorias, anexos, precoItens, totalAnexos] = await Promise.all([
+      sb('/hub_produtos?select=id,sku,nome,descricao,categoria_id,erp_produto_id,ativo,atualizado_em&order=nome.asc&ativo=eq.true'),
       sb('/hub_categorias?select=id,nome,slug,categoria_pai_id&ativo=eq.true&order=nome.asc'),
-      sb('/hub_produto_anexos?select=produto_id,tipo&tipo=eq.foto')
+      sb('/hub_produto_anexos?select=produto_id,tipo&tipo=eq.foto'),
+      sb('/hub_tabela_preco_itens?select=produto_id'),
+      sb('/hub_produto_anexos?select=id')
     ]);
-
-    document.getElementById('statProdutos').textContent = produtos.length;
-    document.getElementById('statCategorias').textContent = categorias.length;
 
     const fotosPorProduto = {};
     anexos.forEach(a => { fotosPorProduto[a.produto_id] = (fotosPorProduto[a.produto_id] || 0) + 1; });
-    const comFoto = Object.keys(fotosPorProduto).length;
 
-    sb('/hub_produto_anexos?select=id').then(all => {
-      document.getElementById('statAnexos').textContent = all.length;
-    });
-    document.getElementById('statComFoto').textContent = comFoto;
+    const produtosComPreco = new Set();
+    precoItens.forEach(i => produtosComPreco.add(i.produto_id));
 
     const catMap = {};
     categorias.forEach(c => catMap[c.id] = c.nome);
 
-    if (!produtos.length) {
-      wrap.innerHTML = '<div class="empty-state"><h3>Nenhum produto sincronizado</h3><p style="margin-top:8px;color:#a0aec0">Clique em "Sincronizar PDM" para importar o catalogo</p></div>';
-      return;
+    const semFoto = produtos.filter(p => !fotosPorProduto[p.id]);
+    const semDescricao = produtos.filter(p => !p.descricao || p.descricao.trim().length < 10);
+    const semPreco = produtos.filter(p => !produtosComPreco.has(p.id));
+    const semPDM = produtos.filter(p => !p.erp_produto_id);
+    const comFoto = Object.keys(fotosPorProduto).length;
+    const comPDM = produtos.filter(p => p.erp_produto_id).length;
+    const naTabela = produtos.filter(p => produtosComPreco.has(p.id)).length;
+
+    document.getElementById('statProdutos').textContent = produtos.length;
+    document.getElementById('statNaTabela').textContent = naTabela;
+    document.getElementById('statComPDM').textContent = comPDM;
+    document.getElementById('statComFoto').textContent = comFoto;
+    document.getElementById('statAnexos').textContent = totalAnexos.length;
+
+    const alertas = [];
+    if (semFoto.length > 0) alertas.push({ icon: '▸', cor: '#e30613', texto: semFoto.length + ' produtos sem foto — afeta a vitrine do catalogo', filtro: 'sem-foto' });
+    if (semDescricao.length > 0) alertas.push({ icon: '▸', cor: '#f59e0b', texto: semDescricao.length + ' produtos sem descricao — ficha do produto fica vazia', filtro: 'sem-descricao' });
+    if (semPreco.length > 0) alertas.push({ icon: '▸', cor: '#e30613', texto: semPreco.length + ' produtos sem preco na tabela — nao aparecem no catalogo', filtro: 'sem-preco' });
+    if (semPDM.length > 0) alertas.push({ icon: '▸', cor: '#f59e0b', texto: semPDM.length + ' produtos na tabela sem dados PDM — sem foto e ficha tecnica', filtro: 'sem-pdm' });
+
+    const alertaEl = document.getElementById('catalogoAlertas');
+    if (alertas.length > 0) {
+      alertaEl.innerHTML = '<div style="background:#fff8f0;border:1px solid #fed7aa;border-radius:8px;padding:14px 16px">' +
+        '<div style="font-size:12px;font-weight:600;color:#9a3412;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Alertas de Qualidade</div>' +
+        alertas.map(a => '<div style="font-size:13px;color:' + a.cor + ';margin-bottom:4px;cursor:pointer" onclick="filterCatalogo(\'' + a.filtro + '\',document.querySelector(\'.catFilter[data-filter=' + a.filtro + ']\'))">' + a.icon + ' ' + a.texto + '</div>').join('') +
+        '</div>';
+    } else {
+      alertaEl.innerHTML = '';
     }
 
-    wrap.innerHTML = '<div style="overflow-x:auto"><table>' +
-      '<thead><tr><th>SKU</th><th>Nome</th><th>Categoria</th><th>Fotos</th><th>Atualizado</th></tr></thead>' +
-      '<tbody>' + produtos.map(p => {
-        const cat = catMap[p.categoria_id] || '—';
-        const fotos = fotosPorProduto[p.id] || 0;
-        const atualizado = p.atualizado_em ? new Date(p.atualizado_em).toLocaleDateString('pt-BR') : '—';
-        return '<tr>' +
-          '<td><code style="font-size:12px;background:#f0f4f8;padding:2px 6px;border-radius:4px">' + p.sku + '</code></td>' +
-          '<td><strong>' + p.nome + '</strong></td>' +
-          '<td>' + cat + '</td>' +
-          '<td>' + (fotos > 0 ? '<span style="color:#16a34a;font-weight:600">' + fotos + '</span>' : '<span style="color:#a0aec0">0</span>') + '</td>' +
-          '<td style="color:#718096;font-size:12px">' + atualizado + '</td>' +
-          '</tr>';
-      }).join('') + '</tbody></table></div>';
+    _catalogoData = produtos.map(p => ({
+      ...p,
+      fotos: fotosPorProduto[p.id] || 0,
+      temPreco: produtosComPreco.has(p.id),
+      temPDM: !!p.erp_produto_id,
+      temDescricao: p.descricao && p.descricao.trim().length >= 10,
+      catNome: catMap[p.categoria_id] || null
+    }));
+
+    renderCatalogoTable(_catalogoData);
 
   } catch (e) {
     wrap.innerHTML = '<div class="empty-state"><h3>Erro ao carregar catalogo</h3><p>' + e.message + '</p></div>';
   }
+}
+
+function filterCatalogo(filtro, el) {
+  document.querySelectorAll('.catFilter').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (!_catalogoData) return;
+
+  let dados = _catalogoData;
+  if (filtro === 'sem-foto') dados = dados.filter(p => p.fotos === 0);
+  else if (filtro === 'sem-descricao') dados = dados.filter(p => !p.temDescricao);
+  else if (filtro === 'sem-preco') dados = dados.filter(p => !p.temPreco);
+  else if (filtro === 'sem-pdm') dados = dados.filter(p => !p.temPDM);
+
+  renderCatalogoTable(dados);
+}
+
+function renderCatalogoTable(dados) {
+  const wrap = document.getElementById('catalogoList');
+  if (!dados.length) {
+    wrap.innerHTML = '<div class="empty-state"><h3>Nenhum produto neste filtro</h3></div>';
+    return;
+  }
+
+  wrap.innerHTML = '<div style="overflow-x:auto"><table>' +
+    '<thead><tr><th>SKU</th><th>Nome</th><th>Categoria</th><th>Fotos</th><th>Status</th><th>Atualizado</th></tr></thead>' +
+    '<tbody>' + dados.map(p => {
+      const atualizado = p.atualizado_em ? new Date(p.atualizado_em).toLocaleDateString('pt-BR') : '—';
+      const tags = [];
+      if (!p.temPreco) tags.push('<span style="background:#fee2e2;color:#991b1b;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500">SEM PRECO</span>');
+      if (p.fotos === 0) tags.push('<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500">SEM FOTO</span>');
+      if (!p.temDescricao) tags.push('<span style="background:#fef3c7;color:#92400e;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500">SEM DESC</span>');
+      if (!p.temPDM) tags.push('<span style="background:#e0e7ff;color:#3730a3;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500">SEM PDM</span>');
+      const statusHtml = tags.length > 0 ? tags.join(' ') : '<span style="color:#16a34a;font-size:11px;font-weight:500">OK</span>';
+      return '<tr>' +
+        '<td><code style="font-size:12px;background:#f0f4f8;padding:2px 6px;border-radius:4px">' + p.sku + '</code></td>' +
+        '<td><strong>' + p.nome + '</strong></td>' +
+        '<td>' + (p.catNome || '—') + '</td>' +
+        '<td>' + (p.fotos > 0 ? '<span style="color:#16a34a;font-weight:600">' + p.fotos + '</span>' : '<span style="color:#a0aec0">0</span>') + '</td>' +
+        '<td>' + statusHtml + '</td>' +
+        '<td style="color:#718096;font-size:12px">' + atualizado + '</td>' +
+        '</tr>';
+    }).join('') + '</tbody></table></div>';
 }
 
 async function syncPDM() {
