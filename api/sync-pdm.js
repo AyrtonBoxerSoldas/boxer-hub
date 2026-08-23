@@ -207,6 +207,7 @@ module.exports = async function handler(req, res) {
           tipo: TIPO_MAP[d.tipo] || 'catalogo',
           storage_path: d.arquivo_url,
           nome: d.nome + (d.revisao && d.revisao !== 'Rev.00' ? ' (' + d.revisao + ')' : ''),
+          alt_text: null,
           ordem: d.tipo === 'Artworks' ? 1 : 10
         });
       }
