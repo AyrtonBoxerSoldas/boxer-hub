@@ -63,6 +63,17 @@ module.exports = async function handler(req, res) {
     if (!docRes.ok) throw new Error('Erro ao buscar documentos PDM: ' + docRes.status);
     const pdmDocs = await docRes.json();
 
+    // 2b — BOM itens com foto (pecas/componentes que tambem sao vendidos como produto)
+    const bomRes = await fetch(PDM_URL + '/rest/v1/bom_itens?imagem_url=not.is.null&select=part_number,descricao,imagem_url', { headers: pdmH });
+    if (!bomRes.ok) throw new Error('Erro ao buscar bom_itens PDM: ' + bomRes.status);
+    const pdmBomItens = await bomRes.json();
+    const bomFotoMap = {};
+    pdmBomItens.forEach(b => {
+      if (!bomFotoMap[b.part_number]) {
+        bomFotoMap[b.part_number] = { imagem_url: b.imagem_url, descricao: b.descricao };
+      }
+    });
+
     // 3 — Sincronizar categorias
     const catSet = new Set();
     const subMap = {};
@@ -185,6 +196,7 @@ module.exports = async function handler(req, res) {
 
     const anexoBodies = [];
 
+    const skusComFotoProduto = new Set();
     pdmProdutos.forEach(p => {
       if (p.imagem_url && skuToHubId[p.codigo]) {
         anexoBodies.push({
@@ -195,6 +207,24 @@ module.exports = async function handler(req, res) {
           alt_text: p.nome,
           ordem: 0
         });
+        skusComFotoProduto.add(p.codigo);
+      }
+    });
+
+    // Fotos de bom_itens (pecas/consumiveis cujo part_number = SKU no Hub)
+    let bomFotosAdded = 0;
+    Object.entries(bomFotoMap).forEach(([partNumber, bom]) => {
+      const hubId = skuToHubId[partNumber];
+      if (hubId && !skusComFotoProduto.has(partNumber)) {
+        anexoBodies.push({
+          produto_id: hubId,
+          tipo: 'foto',
+          storage_path: bom.imagem_url,
+          nome: bom.descricao || partNumber,
+          alt_text: bom.descricao || partNumber,
+          ordem: 0
+        });
+        bomFotosAdded++;
       }
     });
 
@@ -238,6 +268,7 @@ module.exports = async function handler(req, res) {
       subcategorias: subcategorias.length,
       anexos_sincronizados: anexosCount,
       anexos_total_tentados: anexoBodies.length,
+      fotos_bom_itens: bomFotosAdded,
       anexo_errors: anexoErrors.length > 0 ? anexoErrors : undefined,
       timestamp: new Date().toISOString()
     });

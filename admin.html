@@ -1086,7 +1086,7 @@ function renderCatalogoTable(dados) {
   }
 
   wrap.innerHTML = '<div style="overflow-x:auto"><table>' +
-    '<thead><tr><th>SKU</th><th>Nome</th><th>Categoria</th><th>Fotos</th><th>Status</th><th>Atualizado</th></tr></thead>' +
+    '<thead><tr><th>SKU</th><th>Nome</th><th>Categoria</th><th>Fotos</th><th>Status</th><th>Atualizado</th><th></th></tr></thead>' +
     '<tbody>' + dados.map(p => {
       const atualizado = p.atualizado_em ? new Date(p.atualizado_em).toLocaleDateString('pt-BR') : '—';
       const tags = [];
@@ -1102,8 +1102,161 @@ function renderCatalogoTable(dados) {
         '<td>' + (p.fotos > 0 ? '<span style="color:#16a34a;font-weight:600">' + p.fotos + '</span>' : '<span style="color:#a0aec0">0</span>') + '</td>' +
         '<td>' + statusHtml + '</td>' +
         '<td style="color:#718096;font-size:12px">' + atualizado + '</td>' +
+        '<td><button class="btn btn-outline btn-sm" onclick="openFotoManager(\'' + p.id + '\')">Fotos</button></td>' +
         '</tr>';
     }).join('') + '</tbody></table></div>';
+}
+
+// === GERENCIAMENTO DE FOTOS ===
+
+async function openFotoManager(produtoId) {
+  const p = _catalogoData?.find(x => x.id === produtoId);
+  if (!p) return;
+
+  openModal('<div style="text-align:center;padding:20px;color:#718096">Carregando fotos...</div>');
+
+  try {
+    const anexos = await sb('/hub_produto_anexos?produto_id=eq.' + produtoId + '&order=ordem.asc,criado_em.asc&select=id,tipo,storage_path,nome,alt_text,ordem');
+
+    const fotos = anexos.filter(a => a.tipo === 'foto');
+    const docs = anexos.filter(a => a.tipo !== 'foto');
+
+    let fotosHtml = '';
+    if (fotos.length > 0) {
+      fotosHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:16px">' +
+        fotos.map(f => {
+          const isHub = f.storage_path?.includes('/hub-fotos/');
+          return '<div style="position:relative;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#f7fafc">' +
+            '<img src="' + f.storage_path + '" alt="' + (f.alt_text || f.nome || '') + '" style="width:100%;height:120px;object-fit:cover;display:block" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
+            '<div style="display:none;height:120px;align-items:center;justify-content:center;color:#a0aec0;font-size:11px">Imagem indisponivel</div>' +
+            '<div style="padding:6px 8px;font-size:11px;color:#718096;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + (f.nome || '') + '">' + (f.nome || 'Sem nome') + '</div>' +
+            (isHub ? '<button onclick="deleteFoto(\'' + f.id + '\',\'' + produtoId + '\')" style="position:absolute;top:4px;right:4px;background:rgba(220,38,38,.9);color:#fff;border:none;border-radius:4px;width:22px;height:22px;font-size:14px;cursor:pointer;line-height:1" title="Remover foto">x</button>' : '') +
+            '</div>';
+        }).join('') + '</div>';
+    } else {
+      fotosHtml = '<div style="text-align:center;padding:20px;color:#a0aec0;font-size:13px;background:#f7fafc;border-radius:8px;margin-bottom:16px">Nenhuma foto cadastrada</div>';
+    }
+
+    let docsHtml = '';
+    if (docs.length > 0) {
+      docsHtml = '<div style="margin-bottom:16px">' +
+        '<div style="font-size:12px;font-weight:500;color:#718096;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Documentos (' + docs.length + ')</div>' +
+        docs.map(d => '<div style="font-size:12px;padding:4px 0;color:#4a5568"><a href="' + d.storage_path + '" target="_blank" style="color:#25bbee;text-decoration:none">' + (d.nome || d.tipo) + '</a> <span style="color:#a0aec0">(' + d.tipo + ')</span></div>').join('') +
+        '</div>';
+    }
+
+    const html = `
+      <h3 style="font-size:18px;margin-bottom:4px;color:#1d327b">${p.nome}</h3>
+      <div style="font-size:12px;color:#718096;margin-bottom:16px">SKU: ${p.sku} | Categoria: ${p.catNome || '—'} | ${fotos.length} foto(s), ${docs.length} doc(s)</div>
+
+      <div style="font-size:12px;font-weight:500;color:#718096;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Fotos (${fotos.length})</div>
+      ${fotosHtml}
+
+      <div style="border:2px dashed #c3cfe2;border-radius:8px;padding:20px;text-align:center;margin-bottom:16px;cursor:pointer;transition:border-color .2s" id="fotoDropzone" onclick="document.getElementById('fotoFileInput').click()" ondragover="event.preventDefault();this.style.borderColor='#25bbee'" ondragleave="this.style.borderColor='#c3cfe2'" ondrop="event.preventDefault();this.style.borderColor='#c3cfe2';handleFotoDrop(event,'${produtoId}')">
+        <div style="font-size:13px;color:#4a5568;font-weight:500">Clique ou arraste imagens aqui</div>
+        <div style="font-size:11px;color:#a0aec0;margin-top:4px">JPG, PNG ou WebP — max 4MB por imagem</div>
+        <input type="file" id="fotoFileInput" accept="image/jpeg,image/png,image/webp" multiple style="display:none" onchange="handleFotoSelect(this.files,'${produtoId}')">
+      </div>
+      <div id="fotoUploadStatus"></div>
+
+      ${docsHtml}
+
+      <div class="form-actions">
+        <button class="btn btn-outline" onclick="closeModal()">Fechar</button>
+      </div>
+    `;
+    openModal(html);
+  } catch (e) {
+    openModal('<h3 style="color:#991b1b;margin-bottom:12px">Erro</h3><p>' + e.message + '</p><div class="form-actions"><button class="btn btn-outline" onclick="closeModal()">Fechar</button></div>');
+  }
+}
+
+function handleFotoDrop(event, produtoId) {
+  const files = event.dataTransfer?.files;
+  if (files?.length) handleFotoSelect(files, produtoId);
+}
+
+async function handleFotoSelect(files, produtoId) {
+  if (!files?.length) return;
+  const statusEl = document.getElementById('fotoUploadStatus');
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (!file.type.startsWith('image/')) { toast('Arquivo ignorado: ' + file.name + ' (nao e imagem)', 'error'); continue; }
+    if (file.size > 4 * 1024 * 1024) { toast('Arquivo muito grande: ' + file.name + ' (max 4MB)', 'error'); continue; }
+
+    statusEl.innerHTML = '<div style="font-size:12px;color:#718096;padding:8px 0">Enviando ' + (i + 1) + '/' + files.length + ': ' + file.name + '...</div>';
+
+    try {
+      const resized = await resizeImage(file, 1200);
+
+      const r = await fetch('/api/upload-foto', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SESSION.access_token },
+        body: JSON.stringify({
+          produto_id: produtoId,
+          filename: file.name,
+          base64: resized.base64,
+          content_type: resized.type
+        })
+      });
+      const data = await r.json();
+      if (!r.ok || !data.ok) throw new Error(data.error || 'Erro no upload');
+
+      toast(file.name + ' enviado');
+    } catch (e) {
+      toast('Erro em ' + file.name + ': ' + e.message, 'error');
+    }
+  }
+
+  statusEl.innerHTML = '';
+  openFotoManager(produtoId);
+  loadCatalogo();
+}
+
+function resizeImage(file, maxDim) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        let w = img.width, h = img.height;
+        if (w <= maxDim && h <= maxDim && file.size < 500 * 1024) {
+          const b64 = e.target.result.split(',')[1];
+          resolve({ base64: b64, type: file.type });
+          return;
+        }
+        if (w > h) { if (w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; } }
+        else { if (h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; } }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        resolve({ base64: dataUrl.split(',')[1], type: 'image/jpeg' });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function deleteFoto(anexoId, produtoId) {
+  if (!confirm('Remover esta foto?')) return;
+  try {
+    const r = await fetch('/api/upload-foto', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SESSION.access_token },
+      body: JSON.stringify({ action: 'delete', anexo_id: anexoId })
+    });
+    const data = await r.json();
+    if (!r.ok || !data.ok) throw new Error(data.error || 'Erro ao deletar');
+    toast('Foto removida');
+    openFotoManager(produtoId);
+    loadCatalogo();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'error');
+  }
 }
 
 async function syncPDM() {
