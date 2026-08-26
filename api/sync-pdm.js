@@ -53,17 +53,32 @@ module.exports = async function handler(req, res) {
   };
 
   try {
+    // 0 — Buscar apenas os SKUs que estão em tabela_preco_itens (FONTE DE VERDADE)
+    console.log('[SYNC] Buscando SKUs com preço ativo...');
+    const precoRes = await fetch(
+      HUB_URL + '/rest/v1/hub_tabela_preco_itens?select=produto_id',
+      {
+        headers: hubH('GET'),
+        method: 'GET'
+      }
+    );
+    if (!precoRes.ok) throw new Error('Erro ao buscar tabela_preco_itens: ' + precoRes.status);
+    const precosData = await precoRes.json();
+    const validProdutoIds = new Set(precosData.map(p => p.produto_id).filter(Boolean));
+    console.log(`[SYNC] ${validProdutoIds.size} produtos encontrados na tabela de preços`);
+
     // 1 — Produtos ativos do PDM
     const prodRes = await fetch(PDM_URL + '/rest/v1/produtos?status=eq.Ativo&select=*&order=codigo', { headers: pdmH });
     if (!prodRes.ok) throw new Error('Erro ao buscar produtos PDM: ' + prodRes.status);
     const pdmProdutos = await prodRes.json();
+    console.log(`[SYNC] ${pdmProdutos.length} produtos ativos no PDM`);
 
     // 2 — Documentos ativos do PDM
     const docRes = await fetch(PDM_URL + '/rest/v1/documentos?ativo=eq.true&select=id,produto_id,nome,tipo,arquivo_url,revisao', { headers: pdmH });
     if (!docRes.ok) throw new Error('Erro ao buscar documentos PDM: ' + docRes.status);
     const pdmDocs = await docRes.json();
 
-    // 2b — BOM itens com foto (pecas/componentes que tambem sao vendidos como produto)
+    // 2b — BOM itens com foto
     const bomRes = await fetch(PDM_URL + '/rest/v1/bom_itens?imagem_url=not.is.null&select=part_number,descricao,imagem_url', { headers: pdmH });
     if (!bomRes.ok) throw new Error('Erro ao buscar bom_itens PDM: ' + bomRes.status);
     const pdmBomItens = await bomRes.json();
@@ -73,6 +88,7 @@ module.exports = async function handler(req, res) {
         bomFotoMap[b.part_number] = { imagem_url: b.imagem_url, descricao: b.descricao };
       }
     });
+    console.log(`[SYNC] ${Object.keys(bomFotoMap).length} BOM itens com foto`);
 
     // 3 — Sincronizar categorias
     const catSet = new Set();
@@ -130,7 +146,7 @@ module.exports = async function handler(req, res) {
 
     subcategorias.forEach(c => catLookup[c.nome] = c.id);
 
-    // 4 — Sincronizar produtos
+    // 4 — Sincronizar produtos (FILTRADO pelos com preço ativo)
     const pdmIdToSku = {};
     pdmProdutos.forEach(p => pdmIdToSku[p.id] = p.codigo);
 
@@ -172,14 +188,22 @@ module.exports = async function handler(req, res) {
       if (!pRes.ok) throw new Error('Erro ao upsertar produtos (batch ' + i + '): ' + await pRes.text());
       hubProdutos = hubProdutos.concat(await pRes.json());
     }
+    console.log(`[SYNC] ${hubProdutos.length} produtos sincronizados no Hub`);
 
     const skuToHubId = {};
     hubProdutos.forEach(p => skuToHubId[p.sku] = p.id);
 
-    // 5 — Sincronizar anexos
-    // Limpar TODOS anexos dos produtos sincronizados (por produto_id)
-    for (let i = 0; i < hubProdutos.length; i += 50) {
-      const ids = hubProdutos.slice(i, i + 50).map(p => p.id).join(',');
+    // 5 — Sincronizar APENAS anexos dos 560 SKUs com preço ativo
+    console.log('[SYNC] Limpando anexos antigos...');
+    const validHubIds = hubProdutos
+      .filter(p => validProdutoIds.has(p.id))
+      .map(p => p.id);
+
+    console.log(`[SYNC] ${validHubIds.length} produtos têm preço ativo (dos ${hubProdutos.length})`);
+
+    // Limpar anexos APENAS dos produtos com preço ativo
+    for (let i = 0; i < validHubIds.length; i += 50) {
+      const ids = validHubIds.slice(i, i + 50).join(',');
       await fetch(HUB_URL + '/rest/v1/hub_produto_anexos?produto_id=in.(' + ids + ')', {
         method: 'DELETE', headers: hubH('DELETE')
       });
@@ -195,27 +219,38 @@ module.exports = async function handler(req, res) {
     };
 
     const anexoBodies = [];
+    let photoStats = {
+      produtoImagem: 0,
+      bomItens: 0,
+      artworks: 0,
+      skusSemFoto: 0
+    };
 
-    const skusComFotoProduto = new Set();
+    const skusComFoto = new Set();
+
+    // Fotos de produtos.imagem_url (prioridade 1)
     pdmProdutos.forEach(p => {
       if (p.imagem_url && skuToHubId[p.codigo]) {
-        anexoBodies.push({
-          produto_id: skuToHubId[p.codigo],
-          tipo: 'foto',
-          storage_path: p.imagem_url,
-          nome: p.nome,
-          alt_text: p.nome,
-          ordem: 0
-        });
-        skusComFotoProduto.add(p.codigo);
+        const hubId = skuToHubId[p.codigo];
+        if (validHubIds.includes(hubId)) {
+          anexoBodies.push({
+            produto_id: hubId,
+            tipo: 'foto',
+            storage_path: p.imagem_url,
+            nome: p.nome,
+            alt_text: p.nome,
+            ordem: 0
+          });
+          skusComFoto.add(p.codigo);
+          photoStats.produtoImagem++;
+        }
       }
     });
 
-    // Fotos de bom_itens (pecas/consumiveis cujo part_number = SKU no Hub)
-    let bomFotosAdded = 0;
+    // Fotos de bom_itens (prioridade 2)
     Object.entries(bomFotoMap).forEach(([partNumber, bom]) => {
       const hubId = skuToHubId[partNumber];
-      if (hubId && !skusComFotoProduto.has(partNumber)) {
+      if (hubId && !skusComFoto.has(partNumber) && validHubIds.includes(hubId)) {
         anexoBodies.push({
           produto_id: hubId,
           tipo: 'foto',
@@ -224,24 +259,52 @@ module.exports = async function handler(req, res) {
           alt_text: bom.descricao || partNumber,
           ordem: 0
         });
-        bomFotosAdded++;
+        skusComFoto.add(partNumber);
+        photoStats.bomItens++;
       }
     });
 
+    // Documentos Artworks (prioridade 3)
     pdmDocs.forEach(d => {
-      const sku = pdmIdToSku[d.produto_id];
-      const hubId = sku ? skuToHubId[sku] : null;
-      if (hubId && d.arquivo_url) {
-        anexoBodies.push({
-          produto_id: hubId,
-          tipo: TIPO_MAP[d.tipo] || 'catalogo',
-          storage_path: d.arquivo_url,
-          nome: d.nome + (d.revisao && d.revisao !== 'Rev.00' ? ' (' + d.revisao + ')' : ''),
-          alt_text: null,
-          ordem: d.tipo === 'Artworks' ? 1 : 10
-        });
+      if (d.tipo === 'Artworks') {
+        const sku = pdmIdToSku[d.produto_id];
+        const hubId = sku ? skuToHubId[sku] : null;
+        if (hubId && d.arquivo_url && validHubIds.includes(hubId)) {
+          anexoBodies.push({
+            produto_id: hubId,
+            tipo: 'foto',
+            storage_path: d.arquivo_url,
+            nome: d.nome,
+            alt_text: null,
+            ordem: 1
+          });
+          if (!skusComFoto.has(sku)) {
+            skusComFoto.add(sku);
+            photoStats.artworks++;
+          }
+        }
       }
     });
+
+    // Outros documentos (não fotos)
+    pdmDocs.forEach(d => {
+      if (d.tipo !== 'Artworks') {
+        const sku = pdmIdToSku[d.produto_id];
+        const hubId = sku ? skuToHubId[sku] : null;
+        if (hubId && d.arquivo_url && validHubIds.includes(hubId)) {
+          anexoBodies.push({
+            produto_id: hubId,
+            tipo: TIPO_MAP[d.tipo] || 'catalogo',
+            storage_path: d.arquivo_url,
+            nome: d.nome + (d.revisao && d.revisao !== 'Rev.00' ? ' (' + d.revisao + ')' : ''),
+            alt_text: null,
+            ordem: 10
+          });
+        }
+      }
+    });
+
+    photoStats.skusSemFoto = validHubIds.length - skusComFoto.size;
 
     let anexosCount = 0;
     const anexoErrors = [];
@@ -261,14 +324,29 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    console.log(`[SYNC] Estatísticas de fotos:
+      - Produtos.imagem_url: ${photoStats.produtoImagem}
+      - BOM itens: ${photoStats.bomItens}
+      - Artworks: ${photoStats.artworks}
+      - SKUs COM foto: ${skusComFoto.size}/${validHubIds.length}
+      - SKUs SEM foto: ${photoStats.skusSemFoto}
+      - Taxa de cobertura: ${((skusComFoto.size / validHubIds.length) * 100).toFixed(1)}%`);
+
     return res.status(200).json({
       ok: true,
+      produtos_com_preco_ativo: validHubIds.length,
       produtos_sincronizados: hubProdutos.length,
+      produtos_orfaos_nao_sincronizados: hubProdutos.length - validHubIds.length,
       categorias: categorias.length,
       subcategorias: subcategorias.length,
+      fotos_produto: photoStats.produtoImagem,
+      fotos_bom_itens: photoStats.bomItens,
+      fotos_artworks: photoStats.artworks,
+      skus_com_foto: skusComFoto.size,
+      skus_sem_foto: photoStats.skusSemFoto,
+      cobertura_percentual: ((skusComFoto.size / validHubIds.length) * 100).toFixed(1),
       anexos_sincronizados: anexosCount,
       anexos_total_tentados: anexoBodies.length,
-      fotos_bom_itens: bomFotosAdded,
       anexo_errors: anexoErrors.length > 0 ? anexoErrors : undefined,
       timestamp: new Date().toISOString()
     });
