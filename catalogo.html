@@ -307,7 +307,7 @@ async function loadProdutos() {
       return `
       <div class="produto-card">
         <div class="produto-img" onclick="openPDP('${p.produto_id}')">
-          ${fotoUrl ? `<img src="${fotoUrl}" alt="${esc(p.nome)}" loading="lazy">` : '<span>Sem foto</span>'}
+          ${fotoUrl ? `<img src="${fotoUrl}" alt="${esc(p.nome)}">` : '<span>Sem foto</span>'}
         </div>
         <div class="produto-info" onclick="openPDP('${p.produto_id}')">
           <div class="produto-sku">${esc(p.sku)}</div>
