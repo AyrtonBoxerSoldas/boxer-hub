@@ -298,7 +298,7 @@ async function loadProdutos() {
     }
 
     grid.innerHTML = prods.map(p => {
-      const firstFoto = p.foto_paths ? p.foto_paths.split(',')[0] : null;
+      const firstFoto = p.foto_paths ? p.foto_paths.split(',')[0].trim() : null;
       const fotoUrl = firstFoto ? (firstFoto.startsWith('http') ? firstFoto : SB_URL + '/storage/v1/object/public/hub-produto-anexos/' + firstFoto) : '';
       const pr = allPrecos[p.produto_id];
       const cartQty = getCartQty(p.produto_id);
