@@ -298,7 +298,8 @@ async function loadProdutos() {
     }
 
     grid.innerHTML = prods.map(p => {
-      const fotoUrl = p.foto_paths ? SB_URL + '/storage/v1/object/public/hub-produto-anexos/' + p.foto_paths.split(',')[0] : '';
+      const firstFoto = p.foto_paths ? p.foto_paths.split(',')[0] : null;
+      const fotoUrl = firstFoto ? (firstFoto.startsWith('http') ? firstFoto : SB_URL + '/storage/v1/object/public/hub-produto-anexos/' + firstFoto) : '';
       const pr = allPrecos[p.produto_id];
       const cartQty = getCartQty(p.produto_id);
       const st = stockInfo(p);
@@ -439,7 +440,7 @@ async function openPDP(produtoId) {
     content.innerHTML = `
       <div class="pdp-layout">
         <div class="pdp-gallery">
-          ${fotos.length ? `<img src="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${fotos[0].storage_path}" alt="${esc(prod.nome)}">` : '<span>Sem foto</span>'}
+          ${fotos.length ? `<img src="${fotos[0].storage_path.startsWith('http') ? fotos[0].storage_path : SB_URL + '/storage/v1/object/public/hub-produto-anexos/' + fotos[0].storage_path}" alt="${esc(prod.nome)}">` : '<span>Sem foto</span>'}
         </div>
         <div class="pdp-details">
           <div class="pdp-sku">${esc(prod.sku)}</div>
@@ -449,7 +450,7 @@ async function openPDP(produtoId) {
           ${prod.o_que_acompanha?.length ? `<div class="pdp-info-card"><div class="pdp-info-title">Conteudo da embalagem</div><ul>${prod.o_que_acompanha.map(i => '<li>' + esc(i) + '</li>').join('')}</ul></div>` : ''}
           ${prod.descricao ? `<div class="pdp-info-card"><div class="pdp-info-title">Descricao</div><p>${esc(prod.descricao)}</p></div>` : ''}
           ${fichaHtml ? `<div class="pdp-info-card"><div class="pdp-info-title">Ficha Tecnica</div><table>${fichaHtml}</table></div>` : ''}
-          ${docs.length ? `<div class="pdp-info-card"><div class="pdp-info-title">Documentos</div>${docs.map(d => `<a class="pdp-doc-link" href="${SB_URL}/storage/v1/object/public/hub-produto-anexos/${d.storage_path}" target="_blank">${esc(docLabel(d.tipo))}</a>`).join('')}</div>` : ''}
+          ${docs.length ? `<div class="pdp-info-card"><div class="pdp-info-title">Documentos</div>${docs.map(d => `<a class="pdp-doc-link" href="${d.storage_path.startsWith('http') ? d.storage_path : SB_URL + '/storage/v1/object/public/hub-produto-anexos/' + d.storage_path}" target="_blank">${esc(docLabel(d.tipo))}</a>`).join('')}</div>` : ''}
         </div>
       </div>`;
 
