@@ -141,7 +141,61 @@ Duplicar o conector é o caminho mais rápido no curto prazo e o mais caro depoi
 
 ---
 
-## 5b. Contrato de autenticação — extraído da spec em 2026-08-27
+## 5a. Autenticação REAL — o que a spec não conta
+
+**A spec descreve `/auth/login`, mas não é o que funciona.** O padrão validado em
+produção está em `Tekweld/bav-boxer` (`scripts/zen_importador.py`), que importa
+vendas do Zen diariamente há meses:
+
+```
+POST /system/security/tokenOpRequest
+  headers: { tenant: "boxer" }
+  body:    { "email": ..., "password": ... }     ← email, não username
+  → resposta em TEXTO PURO, o token entre aspas — não é JSON
+
+Demais chamadas:
+  Authorization: Bearer <token>
+  tenant: boxer
+```
+
+Três diferenças em relação ao que a spec sugere, e cada uma quebraria o
+conector: endpoint diferente, `email` em vez de `username`, e resposta em texto
+em vez de `{accessToken}`.
+
+**`tenant` = `boxer`** — confirmado em dois projetos independentes
+(`bav-boxer` e `boxer-app/supabase/functions/sync-zenerp-stock`).
+
+### Sintaxe do filtro `q` — é RSQL/FIQL
+
+A spec declara só `type: string`. O uso real:
+
+```
+sale.invoice.date>=2026-08-01;sale.invoice.flow==OUT;(status==APPROVED,status==SHIPMENT)
+```
+
+| Operador | Significado |
+|---|---|
+| `;` | AND |
+| `,` | OR |
+| `==` / `!=` | igual / diferente |
+| `>=` `<=` `>` `<` | comparação |
+| `( )` | agrupamento |
+| `a.b.c` | navegação por relação |
+
+### ⚠ Bug de paginação conhecido na API Zen
+
+Documentado no `zen_importador.py`, com defesa já implementada:
+
+> *"queries com range de datas entram em loop infinito após o último item real"*
+
+O contorno em produção é fatiar por dia **e** manter um conjunto de ids já
+vistos, parando quando a página não traz nada novo. `api/_zen.js` implementa a
+mesma proteção (anti-ciclo por id + teto de segurança). **Não remover** achando
+que é excesso de zelo — é bug real do fornecedor.
+
+---
+
+## 5b. Contrato declarado na spec (para referência)
 
 Spec pública: `https://api.zenerp.app.br/platform/openapi.json` (2,18 MB,
 889 paths, 342 schemas). O Swagger UI aponta para ela via
@@ -195,11 +249,28 @@ casamento inicial por CNPJ, sem trafegar o registro completo.
 
 ### Duas armadilhas já identificadas
 
-**1. `Person` não tem campo de "ativo".** Nenhum schema de person na spec tem
-`active`, `status`, `enabled` ou `blocked`. Então "importar os clientes ativos"
-não pode ser um filtro na API — precisa de um critério de negócio (quem comprou
-nos últimos N meses? quem tem `personGroup` X? quem tem título ou pedido?).
-**Decisão pendente do André.**
+**1. `Person` não tem campo de "ativo"** — nenhum schema de person na spec tem
+`active`, `status`, `enabled` ou `blocked`. O critério é de negócio, e foi
+definido em 2026-08-27:
+
+> **Quem importar:** pessoas dos canais de venda **Híbrido, Ecommerce e Varejo**,
+> cadastradas no Zen, **independente da data**.
+>
+> **Qual status dar:** com compra nos **últimos 12 meses** → `ativo`.
+> Os demais entram como **suspensos** — ficam no Hub, mas não compram.
+
+Duas consequências de arquitetura:
+
+- O canal de venda precisa ser localizado em `Person`. Candidatos: `category1`–
+  `category5`, `personGroup` ou `tags` — **a descobrir, não presumir**. É o que
+  `api/zen-explorar.js` responde.
+- "Compra nos últimos 12 meses" não está em `Person`: exige cruzar com
+  `sale.Sale` ou `financial.Receivable` por pessoa. É uma segunda consulta, e
+  define `hub_clientes.status_cadastro`.
+
+Suspenso não é o mesmo que inativo: o cliente existe, aparece, mas não fecha
+pedido. O RLS precisa refletir isso — hoje `status_cadastro` não é checado em
+lugar nenhum.
 
 **2. Formato de CNPJ inconsistente já no Hub:**
 
