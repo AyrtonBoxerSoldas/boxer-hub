@@ -190,8 +190,7 @@ if (!requireAuth()) throw 'auth';
 
 let allCats = [];
 let allPrecos = {};
-let selectedPai = '';
-let selectedSub = '';
+let selectedCat = '';
 
 (async () => {
   await loadPerfil();
@@ -217,33 +216,44 @@ async function loadPrecos() {
 }
 
 // === CATEGORIAS ===
+// Fonte: categoria comercial da tabela de preco, ja resolvida pela view
+// hub_v_catalogo. Lista plana — nao ha hierarquia pai/filho.
+// Categorias "VISTA EXPLODIDA *" (pecas de reposicao) ficam fora dos chips:
+// so aparecem via filtro explicito ou busca por codigo/nome.
 
 async function loadCategorias() {
   try {
-    allCats = await sb('/hub_categorias?ativo=eq.true&order=ordem.asc,nome.asc&select=id,nome,slug,categoria_pai_id');
+    const rows = await sb('/hub_v_catalogo?select=categoria_nome,categoria_ordem,categoria_oculta&order=categoria_ordem.asc,categoria_nome.asc');
+    const vistas = new Map();
+    rows.forEach(r => {
+      if (r.categoria_nome && !vistas.has(r.categoria_nome)) {
+        vistas.set(r.categoria_nome, { nome: r.categoria_nome, oculta: r.categoria_oculta });
+      }
+    });
+    allCats = [...vistas.values()];
     renderCatChips();
   } catch {}
 }
 
 function renderCatChips() {
-  const pais = allCats.filter(c => !c.categoria_pai_id);
+  const visiveis = allCats.filter(c => !c.oculta);
   const wrap = document.getElementById('catChips');
-  wrap.innerHTML = `<div class="cat-chip${!selectedPai ? ' active' : ''}" onclick="selectPai('')">Todos</div>` +
-    pais.map(p => `<div class="cat-chip${selectedPai === p.id ? ' active' : ''}" onclick="selectPai('${p.id}')">${p.nome}</div>`).join('');
-  renderSubChips();
+  wrap.innerHTML = `<div class="cat-chip${!selectedCat ? ' active' : ''}" onclick="selectCat('')">Todos</div>` +
+    visiveis.map(c => `<div class="cat-chip${selectedCat === c.nome ? ' active' : ''}" onclick="selectCat('${esc(c.nome).replace(/'/g, "\\'")}')">${esc(c.nome)}</div>`).join('');
+  renderOcultaChip();
 }
 
-function renderSubChips() {
+// As categorias ocultas ficam atras de um unico chip discreto.
+function renderOcultaChip() {
   const wrap = document.getElementById('subChips');
-  if (!selectedPai) { wrap.innerHTML = ''; return; }
-  const subs = allCats.filter(c => c.categoria_pai_id === selectedPai);
-  if (!subs.length) { wrap.innerHTML = ''; return; }
-  wrap.innerHTML = `<div class="sub-chip${!selectedSub ? ' active' : ''}" onclick="selectSub('')">Todas</div>` +
-    subs.map(s => `<div class="sub-chip${selectedSub === s.id ? ' active' : ''}" onclick="selectSub('${s.id}')">${s.nome}</div>`).join('');
+  const ocultas = allCats.filter(c => c.oculta);
+  if (!ocultas.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = ocultas.map(c =>
+    `<div class="sub-chip${selectedCat === c.nome ? ' active' : ''}" onclick="selectCat('${esc(c.nome).replace(/'/g, "\\'")}')">${esc(c.nome)}</div>`
+  ).join('');
 }
 
-function selectPai(id) { selectedPai = id; selectedSub = ''; renderCatChips(); loadProdutos(); }
-function selectSub(id) { selectedSub = id; renderSubChips(); loadProdutos(); }
+function selectCat(nome) { selectedCat = nome; renderCatChips(); loadProdutos(); }
 
 // === STOCK HELPERS ===
 
@@ -263,6 +273,9 @@ function fmtPrevisao(d) {
 
 function stockInfo(p) {
   const prev = p.previsao_chegada && p.status_estoque !== 'disponivel' ? fmtPrevisao(p.previsao_chegada) : '';
+  // 'sem_info': o conector ZEN ainda nao popula estoque. Omitir o selo e mais
+  // honesto do que marcar o catalogo inteiro como indisponivel.
+  if (p.status_estoque === 'sem_info') return null;
   if (p.status_estoque === 'disponivel') return { cls: 'stock-ok', scls: 's-ok', text: 'Em estoque', prev: '' };
   if (p.status_estoque === 'baixo') return { cls: 'stock-low', scls: 's-low', text: 'Estoque baixo', prev };
   if (p.backorder_disponivel) return { cls: 'stock-bo', scls: 's-bo', text: 'Sob encomenda', prev };
@@ -275,13 +288,13 @@ async function loadProdutos() {
   const grid = document.getElementById('produtoGrid');
   const busca = document.getElementById('buscaProduto').value.trim();
 
-  let url = '/hub_v_catalogo?ativo=eq.true&select=produto_id,sku,nome,descricao,categoria_nome,categoria_id,categoria_pai_id,estoque_disponivel,status_estoque,backorder_disponivel,previsao_chegada,foto_paths,destaque&order=sku.asc';
+  let url = '/hub_v_catalogo?ativo=eq.true&select=produto_id,sku,nome,descricao,categoria_nome,categoria_id,categoria_oculta,estoque_disponivel,status_estoque,backorder_disponivel,previsao_chegada,foto_paths,destaque&order=sku.asc';
 
-  if (selectedSub) {
-    url += '&categoria_id=eq.' + selectedSub;
-  } else if (selectedPai) {
-    const subIds = allCats.filter(c => c.categoria_pai_id === selectedPai).map(c => c.id);
-    if (subIds.length) url += '&categoria_id=in.(' + subIds.join(',') + ')';
+  if (selectedCat) {
+    url += '&categoria_nome=eq.' + encodeURIComponent(selectedCat);
+  } else if (!busca) {
+    // Sem filtro e sem busca: pecas de vista explodida ficam de fora da vitrine.
+    url += '&categoria_oculta=is.false';
   }
 
   if (busca) {
@@ -298,8 +311,9 @@ async function loadProdutos() {
     }
 
     grid.innerHTML = prods.map(p => {
-      const firstFoto = p.foto_paths ? p.foto_paths.split(',')[0].trim() : null;
-      const fotoUrl = firstFoto ? (firstFoto.startsWith('http') ? firstFoto : SB_URL + '/storage/v1/object/public/hub-produto-anexos/' + firstFoto) : '';
+      // A view ja entrega foto_paths ordenado por prioridade de fonte
+      // (PDM primeiro) e sem URLs nao-renderizaveis.
+      const fotoUrl = p.foto_paths ? anexoUrl(p.foto_paths.split(',')[0]) : '';
       const pr = allPrecos[p.produto_id];
       const cartQty = getCartQty(p.produto_id);
       const st = stockInfo(p);
@@ -314,7 +328,7 @@ async function loadProdutos() {
           <div class="produto-nome">${esc(p.nome)}</div>
           <div class="produto-cat">${esc(p.categoria_nome || '')}${volt ? ' <span class="produto-volt">⚡ ' + volt + '</span>' : ''}</div>
           ${pr ? `<div class="produto-preco">${fmtMoeda(+pr.preco_base)}<span class="produto-preco-ipi">c/ impostos${+pr.ipi_percentual > 0 ? ' | IPI ' + pr.ipi_percentual + '%' : ''}${+pr.icms_percentual > 0 ? ' | ICMS ' + pr.icms_percentual + '%' : ''}</span></div>` : ''}
-          <div class="produto-stock-tag ${st.cls}"><span class="dot"></span>${st.text}${st.prev ? ' <span class="prev-hint">· prev. ' + st.prev + '</span>' : ''}</div>
+          ${st ? `<div class="produto-stock-tag ${st.cls}"><span class="dot"></span>${st.text}${st.prev ? ' <span class="prev-hint">· prev. ' + st.prev + '</span>' : ''}</div>` : ''}
         </div>
         <div class="produto-actions" onclick="event.stopPropagation()">
           <div class="produto-qty-wrap">
@@ -418,8 +432,12 @@ async function openPDP(produtoId) {
     const [prod] = await sb('/hub_v_catalogo?produto_id=eq.' + produtoId + '&select=*');
     if (!prod) { closePDP(); return; }
 
-    const anexos = await sb('/hub_produto_anexos?produto_id=eq.' + produtoId + '&order=tipo.asc,ordem.asc&select=*');
-    const fotos = anexos.filter(a => a.tipo === 'foto');
+    // Somente tipos publicos. Ficha tecnica, FISPQ e certificado sao documentos
+    // criticos: ficam fora da query (a RLS tambem barra), nao apenas escondidos
+    // na renderizacao.
+    const anexos = await sb('/hub_produto_anexos?produto_id=eq.' + produtoId +
+      '&tipo=in.(foto,catalogo,manual)&order=prioridade.asc,ordem.asc&select=tipo,storage_path,nome,ordem,prioridade,renderizavel');
+    const fotos = anexos.filter(a => a.tipo === 'foto' && a.renderizavel);
     const docs = anexos.filter(a => a.tipo !== 'foto');
     const pr = allPrecos[produtoId];
     const cartQty = getCartQty(produtoId);
@@ -440,17 +458,17 @@ async function openPDP(produtoId) {
     content.innerHTML = `
       <div class="pdp-layout">
         <div class="pdp-gallery">
-          ${fotos.length ? `<img src="${fotos[0].storage_path.startsWith('http') ? fotos[0].storage_path : SB_URL + '/storage/v1/object/public/hub-produto-anexos/' + fotos[0].storage_path}" alt="${esc(prod.nome)}">` : '<span>Sem foto</span>'}
+          ${fotos.length ? `<img src="${anexoUrl(fotos[0].storage_path)}" alt="${esc(prod.nome)}">` : '<span>Sem foto</span>'}
         </div>
         <div class="pdp-details">
           <div class="pdp-sku">${esc(prod.sku)}</div>
           <div class="pdp-nome">${esc(prod.nome)}</div>
-          <div class="pdp-stock-badge ${st.scls}"><span class="pdp-stock-dot"></span>${st.text}${st.prev ? ' · Previsao: ' + st.prev : ''}</div>
+          ${st ? `<div class="pdp-stock-badge ${st.scls}"><span class="pdp-stock-dot"></span>${st.text}${st.prev ? ' · Previsao: ' + st.prev : ''}</div>` : ''}
           ${metaParts.length ? '<div class="pdp-meta-row">' + metaParts.join('') + '</div>' : ''}
           ${prod.o_que_acompanha?.length ? `<div class="pdp-info-card"><div class="pdp-info-title">Conteudo da embalagem</div><ul>${prod.o_que_acompanha.map(i => '<li>' + esc(i) + '</li>').join('')}</ul></div>` : ''}
           ${prod.descricao ? `<div class="pdp-info-card"><div class="pdp-info-title">Descricao</div><p>${esc(prod.descricao)}</p></div>` : ''}
           ${fichaHtml ? `<div class="pdp-info-card"><div class="pdp-info-title">Ficha Tecnica</div><table>${fichaHtml}</table></div>` : ''}
-          ${docs.filter(d => ['catalogo', 'manual'].includes(d.tipo)).length ? `<div class="pdp-info-card"><div class="pdp-info-title">Documentos</div>${docs.filter(d => ['catalogo', 'manual'].includes(d.tipo)).map(d => `<a class="pdp-doc-link" href="${d.storage_path.startsWith('http') ? d.storage_path : SB_URL + '/storage/v1/object/public/hub-produto-anexos/' + d.storage_path}" target="_blank">${esc(docLabel(d.tipo))}</a>`).join('')}</div>` : ''}
+          ${docs.length ? `<div class="pdp-info-card"><div class="pdp-info-title">Documentos</div>${docs.map(d => `<a class="pdp-doc-link" href="${anexoUrl(d.storage_path)}" target="_blank" rel="noopener">${esc(docLabel(d.tipo))}</a>`).join('')}</div>` : ''}
         </div>
       </div>`;
 
@@ -488,6 +506,13 @@ window.addEventListener('popstate', () => {
 // === UTILS ===
 
 function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// storage_path pode ser URL completa (PDM) ou caminho relativo ao bucket do hub.
+function anexoUrl(path) {
+  if (!path) return '';
+  const p = String(path).trim();
+  return p.startsWith('http') ? p : SB_URL + '/storage/v1/object/public/hub-produto-anexos/' + p;
+}
 
 const DOC_LABELS = {ficha_tecnica:'Ficha Tecnica',certificado:'Certificado',fispq:'FISPQ',manual:'Manual',catalogo:'Catalogo'};
 function docLabel(tipo) { return DOC_LABELS[tipo] || tipo; }

@@ -1,6 +1,23 @@
 const HUB_URL = 'https://bmepxcnrsofofoswubuu.supabase.co';
 const PDM_URL = 'https://tufbuyfwysowgkxsvjmh.supabase.co';
 
+// O SKU e a chave de tres operacoes (categoria comercial, foto do PDM e o
+// on_conflict do upsert). Um unico espaco sobrando ja duplicou produto no
+// banco, entao todo match passa por aqui.
+function normSku(v) {
+  return v == null ? '' : String(v).trim().toUpperCase();
+}
+
+// URLs que nao servem como <img src>. Os links ":b:" do SharePoint respondem
+// 302 para o login da Microsoft — ficam gravados, mas fora do catalogo ate o
+// caminho definitivo ser definido.
+function classificarFoto(url, fonte) {
+  const ehSharePoint = /sharepoint\.com/i.test(url || '');
+  if (ehSharePoint) return { origem: 'sharepoint', prioridade: 90, renderizavel: false };
+  if (fonte === 'bom')  return { origem: 'pdm_bom',     prioridade: 2,  renderizavel: true };
+  return { origem: 'pdm_produto', prioridade: 1, renderizavel: true };
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -84,8 +101,9 @@ module.exports = async function handler(req, res) {
     const pdmBomItens = await bomRes.json();
     const bomFotoMap = {};
     pdmBomItens.forEach(b => {
-      if (!bomFotoMap[b.part_number]) {
-        bomFotoMap[b.part_number] = { imagem_url: b.imagem_url, descricao: b.descricao };
+      const pn = normSku(b.part_number);
+      if (pn && !bomFotoMap[pn]) {
+        bomFotoMap[pn] = { imagem_url: b.imagem_url, descricao: b.descricao };
       }
     });
     console.log(`[SYNC] ${Object.keys(bomFotoMap).length} BOM itens com foto`);
@@ -148,7 +166,7 @@ module.exports = async function handler(req, res) {
 
     // 4 — Sincronizar produtos (FILTRADO pelos com preço ativo)
     const pdmIdToSku = {};
-    pdmProdutos.forEach(p => pdmIdToSku[p.id] = p.codigo);
+    pdmProdutos.forEach(p => pdmIdToSku[p.id] = normSku(p.codigo));
 
     const prodBodies = pdmProdutos.map(p => {
       const ft = {};
@@ -164,7 +182,7 @@ module.exports = async function handler(req, res) {
       const catId = catLookup[p.subcategoria] || catLookup[p.categoria] || null;
 
       return {
-        sku: p.codigo,
+        sku: normSku(p.codigo),
         nome: p.nome,
         descricao: p.descricao_detalhada || p.descricao || null,
         ncm: p.ncm || null,
@@ -191,19 +209,21 @@ module.exports = async function handler(req, res) {
     console.log(`[SYNC] ${hubProdutos.length} produtos sincronizados no Hub`);
 
     const skuToHubId = {};
-    hubProdutos.forEach(p => skuToHubId[p.sku] = p.id);
+    hubProdutos.forEach(p => skuToHubId[normSku(p.sku)] = p.id);
 
-    // 5 — Sincronizar APENAS anexos dos 560 SKUs com preço ativo
+    // 5 — Sincronizar APENAS anexos dos SKUs com preço ativo
     console.log('[SYNC] Limpando anexos antigos...');
-    const validHubIds = hubProdutos
-      .filter(p => validProdutoIds.has(p.id))
-      .map(p => p.id);
+    // Set, nao array: o lookup roda dentro de tres loops sobre milhares de itens.
+    const validHubIds = new Set(
+      hubProdutos.filter(p => validProdutoIds.has(p.id)).map(p => p.id)
+    );
 
-    console.log(`[SYNC] ${validHubIds.length} produtos têm preço ativo (dos ${hubProdutos.length})`);
+    console.log(`[SYNC] ${validHubIds.size} produtos têm preço ativo (dos ${hubProdutos.length})`);
 
     // Limpar anexos APENAS dos produtos com preço ativo
-    for (let i = 0; i < validHubIds.length; i += 50) {
-      const ids = validHubIds.slice(i, i + 50).join(',');
+    const validIdList = [...validHubIds];
+    for (let i = 0; i < validIdList.length; i += 50) {
+      const ids = validIdList.slice(i, i + 50).join(',');
       await fetch(HUB_URL + '/rest/v1/hub_produto_anexos?produto_id=in.(' + ids + ')', {
         method: 'DELETE', headers: hubH('DELETE')
       });
@@ -223,64 +243,71 @@ module.exports = async function handler(req, res) {
       produtoImagem: 0,
       bomItens: 0,
       artworks: 0,
+      sharepointPendente: 0,
       skusSemFoto: 0
     };
 
     const skusComFoto = new Set();
 
-    // Fotos de produtos.imagem_url (prioridade 1)
+    // Prioridade 1 — foto do produto no PDM (unica fonte que renderiza hoje)
     pdmProdutos.forEach(p => {
-      if (p.imagem_url && skuToHubId[p.codigo]) {
-        const hubId = skuToHubId[p.codigo];
-        if (validHubIds.includes(hubId)) {
-          anexoBodies.push({
-            produto_id: hubId,
-            tipo: 'foto',
-            storage_path: p.imagem_url,
-            nome: p.nome,
-            alt_text: p.nome,
-            ordem: 0
-          });
-          skusComFoto.add(p.codigo);
-          photoStats.produtoImagem++;
-        }
+      const sku = normSku(p.codigo);
+      const hubId = skuToHubId[sku];
+      if (p.imagem_url && hubId && validHubIds.has(hubId)) {
+        anexoBodies.push({
+          produto_id: hubId,
+          tipo: 'foto',
+          storage_path: p.imagem_url,
+          nome: p.nome,
+          alt_text: p.nome,
+          ordem: 0,
+          ...classificarFoto(p.imagem_url, 'produto')
+        });
+        skusComFoto.add(sku);
+        photoStats.produtoImagem++;
       }
     });
 
-    // Fotos de bom_itens (prioridade 2)
+    // Prioridade 2 — foto do item de BOM, quando o produto nao tem a sua
     Object.entries(bomFotoMap).forEach(([partNumber, bom]) => {
       const hubId = skuToHubId[partNumber];
-      if (hubId && !skusComFoto.has(partNumber) && validHubIds.includes(hubId)) {
+      if (hubId && !skusComFoto.has(partNumber) && validHubIds.has(hubId)) {
         anexoBodies.push({
           produto_id: hubId,
           tipo: 'foto',
           storage_path: bom.imagem_url,
           nome: bom.descricao || partNumber,
           alt_text: bom.descricao || partNumber,
-          ordem: 0
+          ordem: 0,
+          ...classificarFoto(bom.imagem_url, 'bom')
         });
         skusComFoto.add(partNumber);
         photoStats.bomItens++;
       }
     });
 
-    // Documentos Artworks (prioridade 3)
+    // Prioridade 90 — Artworks (SharePoint). Gravadas, mas nao renderizaveis.
     pdmDocs.forEach(d => {
       if (d.tipo === 'Artworks') {
         const sku = pdmIdToSku[d.produto_id];
         const hubId = sku ? skuToHubId[sku] : null;
-        if (hubId && d.arquivo_url && validHubIds.includes(hubId)) {
+        if (hubId && d.arquivo_url && validHubIds.has(hubId)) {
+          const cls = classificarFoto(d.arquivo_url, 'artwork');
           anexoBodies.push({
             produto_id: hubId,
             tipo: 'foto',
             storage_path: d.arquivo_url,
             nome: d.nome,
             alt_text: null,
-            ordem: 1
+            ordem: 1,
+            ...cls
           });
-          if (!skusComFoto.has(sku)) {
+          // So conta como "com foto" se realmente for exibivel
+          if (cls.renderizavel && !skusComFoto.has(sku)) {
             skusComFoto.add(sku);
             photoStats.artworks++;
+          } else if (!cls.renderizavel) {
+            photoStats.sharepointPendente++;
           }
         }
       }
@@ -291,20 +318,23 @@ module.exports = async function handler(req, res) {
       if (d.tipo !== 'Artworks') {
         const sku = pdmIdToSku[d.produto_id];
         const hubId = sku ? skuToHubId[sku] : null;
-        if (hubId && d.arquivo_url && validHubIds.includes(hubId)) {
+        if (hubId && d.arquivo_url && validHubIds.has(hubId)) {
           anexoBodies.push({
             produto_id: hubId,
             tipo: TIPO_MAP[d.tipo] || 'catalogo',
             storage_path: d.arquivo_url,
             nome: d.nome + (d.revisao && d.revisao !== 'Rev.00' ? ' (' + d.revisao + ')' : ''),
             alt_text: null,
-            ordem: 10
+            ordem: 10,
+            origem: /sharepoint\.com/i.test(d.arquivo_url) ? 'sharepoint' : 'pdm_produto',
+            prioridade: 10,
+            renderizavel: true
           });
         }
       }
     });
 
-    photoStats.skusSemFoto = validHubIds.length - skusComFoto.size;
+    photoStats.skusSemFoto = validHubIds.size - skusComFoto.size;
 
     let anexosCount = 0;
     const anexoErrors = [];
@@ -327,24 +357,28 @@ module.exports = async function handler(req, res) {
     console.log(`[SYNC] Estatísticas de fotos:
       - Produtos.imagem_url: ${photoStats.produtoImagem}
       - BOM itens: ${photoStats.bomItens}
-      - Artworks: ${photoStats.artworks}
-      - SKUs COM foto: ${skusComFoto.size}/${validHubIds.length}
+      - Artworks renderizáveis: ${photoStats.artworks}
+      - SharePoint pendente (não exibível): ${photoStats.sharepointPendente}
+      - SKUs COM foto exibível: ${skusComFoto.size}/${validHubIds.size}
       - SKUs SEM foto: ${photoStats.skusSemFoto}
-      - Taxa de cobertura: ${((skusComFoto.size / validHubIds.length) * 100).toFixed(1)}%`);
+      - Cobertura: ${((skusComFoto.size / validHubIds.size) * 100).toFixed(1)}%`);
 
-    return res.status(200).json({
-      ok: true,
-      produtos_com_preco_ativo: validHubIds.length,
+    // Os anexos sao apagados antes de reinserir. Se lotes falharam, o catalogo
+    // ficou com menos fotos do que deveria — isso nao pode passar como sucesso.
+    return res.status(anexoErrors.length > 0 ? 207 : 200).json({
+      ok: anexoErrors.length === 0,
+      produtos_com_preco_ativo: validHubIds.size,
       produtos_sincronizados: hubProdutos.length,
-      produtos_orfaos_nao_sincronizados: hubProdutos.length - validHubIds.length,
+      produtos_orfaos_nao_sincronizados: hubProdutos.length - validHubIds.size,
       categorias: categorias.length,
       subcategorias: subcategorias.length,
       fotos_produto: photoStats.produtoImagem,
       fotos_bom_itens: photoStats.bomItens,
       fotos_artworks: photoStats.artworks,
+      fotos_sharepoint_pendentes: photoStats.sharepointPendente,
       skus_com_foto: skusComFoto.size,
       skus_sem_foto: photoStats.skusSemFoto,
-      cobertura_percentual: ((skusComFoto.size / validHubIds.length) * 100).toFixed(1),
+      cobertura_percentual: ((skusComFoto.size / validHubIds.size) * 100).toFixed(1),
       anexos_sincronizados: anexosCount,
       anexos_total_tentados: anexoBodies.length,
       anexo_errors: anexoErrors.length > 0 ? anexoErrors : undefined,
