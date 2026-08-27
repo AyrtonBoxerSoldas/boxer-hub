@@ -29,6 +29,12 @@ O join é `JOIN`, não `LEFT JOIN`: produto sem tabela de preço não aparece no
 catálogo (ADR-004 — a tabela de preços é a fonte oficial). Hoje isso exclui
 **107 produtos**.
 
+**Ausência da tabela de preço significa fora de linha** (confirmado em
+2026-08-27). Não é lacuna de cadastro: produtos descontinuados saem da tabela e,
+por consequência, do catálogo. Entre eles há itens com foto e cadastro no PDM —
+tochas S335/S535, refrigeradores LQ1500/LQ2000 — o que pode parecer erro à
+primeira vista, mas é o comportamento correto.
+
 `comercial.hub_categorias` (taxonomia do PDM) **não alimenta mais o catálogo**.
 Ela tem nomes duplicados em pais diferentes ("Grandes" 4×, "Acessórios de
 solda" 6×) porque o `catLookup` do sync indexava por nome, não por slug.
@@ -72,11 +78,27 @@ A view agora agrega com `ORDER BY prioridade, ordem, id` e filtra
 
 ## Cobertura real de fotos
 
+Medido em 2026-08-27, após o sync com paginação e prioridade de fonte:
+
 | | |
 |---|---|
 | SKUs no catálogo | 583 |
-| Com foto exibível | **~95 (16%)** após o próximo sync |
-| Sem foto em nenhuma fonte | ~488 |
+| **Com foto exibível** | **95 (16,3%)** — 73 do PDM, 28 da BOM |
+| Sem foto em nenhuma fonte | 488 |
+| Anexos totais | 498 |
+
+### Por que o painel admin mostra 102 e o catálogo 95
+
+Contam universos diferentes, e ambos estão certos:
+
+- **102** — produtos com qualquer anexo foto, sobre os 691 de `hub_produtos`.
+  É o acervo total, incluindo fora de linha. Decidido manter assim.
+- **101** — descontando 1 produto cuja única foto é link SharePoint, que não
+  renderiza.
+- **95** — o que o revendedor vê: apenas produtos na tabela de preço.
+
+Os 6 de diferença são produtos fora de linha que ainda têm foto e cadastro no
+PDM.
 
 **Teto imposto pela origem, não pelo código:** o PDM tem 280 produtos; o
 catálogo tem 583. 422 SKUs não existem no PDM. As 1.576 fotos de `bom_itens`
