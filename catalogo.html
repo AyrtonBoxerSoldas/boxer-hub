@@ -31,14 +31,19 @@ body{font-family:'Outfit',sans-serif;background:#f0f4f8;color:#1a202c}
 .search-input{width:100%;padding:10px 14px 10px 38px;border:1px solid #c3cfe2;border-radius:8px;font-family:Outfit;font-size:14px;outline:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23a0aec0' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.656a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") 12px center no-repeat}
 .search-input:focus{border-color:#25bbee}
 
-/* === CATEGORY CHIPS === */
-.cat-chips{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;margin-bottom:8px;scrollbar-width:none}
-.cat-chips::-webkit-scrollbar{display:none}
+/* === CATEGORY CHIPS ===
+   flex-wrap, nao overflow: com 6 grupos os chips cabem em 1-2 linhas e nenhum
+   fica cortado na borda. Sub-chips continuam com scroll horizontal porque um
+   grupo pode ter 9 categorias de nome longo. */
+.cat-chips{display:flex;flex-wrap:wrap;gap:8px;padding-bottom:4px;margin-bottom:8px}
 .cat-chip{padding:7px 14px;border-radius:20px;border:1px solid #d0d8e8;background:#fff;font-family:Outfit;font-size:12px;font-weight:500;color:#4a5568;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0}
 .cat-chip:hover{border-color:#25bbee;color:#1d327b}
 .cat-chip.active{background:#1d327b;color:#fff;border-color:#1d327b}
-.sub-chips{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px;margin-bottom:12px;scrollbar-width:none}
-.sub-chips::-webkit-scrollbar{display:none}
+/* Pecas de reposicao: acessivel, mas sem competir com as categorias de venda */
+.cat-chip-discreto{color:#a0aec0;border-style:dashed;font-size:11px}
+.cat-chip-discreto:hover{color:#718096;border-color:#c3cfe2}
+.cat-chip-discreto.active{background:#718096;color:#fff;border-color:#718096;border-style:solid}
+.sub-chips{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:8px;margin-bottom:12px}
 .sub-chip{padding:5px 12px;border-radius:16px;border:1px solid #e2e8f0;background:#f7fafc;font-family:Outfit;font-size:11px;font-weight:500;color:#718096;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0}
 .sub-chip:hover{border-color:#25bbee;color:#1d327b}
 .sub-chip.active{background:#25bbee;color:#fff;border-color:#25bbee}
@@ -190,6 +195,7 @@ if (!requireAuth()) throw 'auth';
 
 let allCats = [];
 let allPrecos = {};
+let selectedGrupo = '';
 let selectedCat = '';
 
 (async () => {
@@ -216,18 +222,24 @@ async function loadPrecos() {
 }
 
 // === CATEGORIAS ===
-// Fonte: categoria comercial da tabela de preco, ja resolvida pela view
-// hub_v_catalogo. Lista plana — nao ha hierarquia pai/filho.
-// Categorias "VISTA EXPLODIDA *" (pecas de reposicao) ficam fora dos chips:
-// so aparecem via filtro explicito ou busca por codigo/nome.
+// Fonte: categoria comercial da tabela de preco (view hub_v_catalogo), agrupada
+// e ordenada por comercial.hub_categoria_config — maquinas no topo, consumiveis
+// no fim. Sao 28 categorias: numa linha unica os chips cortavam na borda, entao
+// a navegacao e em dois niveis (grupo -> categoria).
+// O grupo "Peças" (vista explodida) so aparece por escolha explicita ou busca.
 
 async function loadCategorias() {
   try {
-    const rows = await sb('/hub_v_catalogo?select=categoria_nome,categoria_ordem,categoria_oculta&order=categoria_ordem.asc,categoria_nome.asc');
+    const rows = await sb('/hub_v_catalogo?select=categoria_nome,categoria_grupo,categoria_grupo_ordem,categoria_ordem,categoria_oculta&order=categoria_grupo_ordem.asc,categoria_ordem.asc');
     const vistas = new Map();
     rows.forEach(r => {
       if (r.categoria_nome && !vistas.has(r.categoria_nome)) {
-        vistas.set(r.categoria_nome, { nome: r.categoria_nome, oculta: r.categoria_oculta });
+        vistas.set(r.categoria_nome, {
+          nome: r.categoria_nome,
+          grupo: r.categoria_grupo,
+          grupoOrdem: r.categoria_grupo_ordem,
+          oculta: r.categoria_oculta
+        });
       }
     });
     allCats = [...vistas.values()];
@@ -235,25 +247,56 @@ async function loadCategorias() {
   } catch {}
 }
 
+function gruposOrdenados() {
+  const m = new Map();
+  allCats.forEach(c => {
+    if (!m.has(c.grupo)) m.set(c.grupo, { nome: c.grupo, ordem: c.grupoOrdem, oculto: c.oculta });
+    // um grupo so e discreto se todas as suas categorias forem ocultas
+    if (!c.oculta) m.get(c.grupo).oculto = false;
+  });
+  return [...m.values()].sort((a, b) => a.ordem - b.ordem);
+}
+
 function renderCatChips() {
-  const visiveis = allCats.filter(c => !c.oculta);
   const wrap = document.getElementById('catChips');
-  wrap.innerHTML = `<div class="cat-chip${!selectedCat ? ' active' : ''}" onclick="selectCat('')">Todos</div>` +
-    visiveis.map(c => `<div class="cat-chip${selectedCat === c.nome ? ' active' : ''}" onclick="selectCat('${esc(c.nome).replace(/'/g, "\\'")}')">${esc(c.nome)}</div>`).join('');
-  renderOcultaChip();
+  const chip = (label, ativo, onclick, cls = 'cat-chip') =>
+    `<div class="${cls}${ativo ? ' active' : ''}" onclick="${onclick}">${esc(label)}</div>`;
+
+  wrap.innerHTML =
+    chip('Todos', !selectedGrupo && !selectedCat, `selectGrupo('')`) +
+    gruposOrdenados().map(g =>
+      chip(g.nome, selectedGrupo === g.nome, `selectGrupo('${jsq(g.nome)}')`,
+           g.oculto ? 'cat-chip cat-chip-discreto' : 'cat-chip')
+    ).join('');
+
+  renderSubChips();
 }
 
-// As categorias ocultas ficam atras de um unico chip discreto.
-function renderOcultaChip() {
+function renderSubChips() {
   const wrap = document.getElementById('subChips');
-  const ocultas = allCats.filter(c => c.oculta);
-  if (!ocultas.length) { wrap.innerHTML = ''; return; }
-  wrap.innerHTML = ocultas.map(c =>
-    `<div class="sub-chip${selectedCat === c.nome ? ' active' : ''}" onclick="selectCat('${esc(c.nome).replace(/'/g, "\\'")}')">${esc(c.nome)}</div>`
-  ).join('');
+  if (!selectedGrupo) { wrap.innerHTML = ''; return; }
+  const cats = allCats.filter(c => c.grupo === selectedGrupo);
+  if (cats.length < 2) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML =
+    `<div class="sub-chip${!selectedCat ? ' active' : ''}" onclick="selectCat('')">Todas</div>` +
+    cats.map(c =>
+      `<div class="sub-chip${selectedCat === c.nome ? ' active' : ''}" onclick="selectCat('${jsq(c.nome)}')">${esc(c.nome)}</div>`
+    ).join('');
 }
 
-function selectCat(nome) { selectedCat = nome; renderCatChips(); loadProdutos(); }
+function selectGrupo(nome) {
+  selectedGrupo = nome;
+  // grupo de categoria unica: seleciona direto, sem sub-chip redundante
+  const cats = allCats.filter(c => c.grupo === nome);
+  selectedCat = (nome && cats.length === 1) ? cats[0].nome : '';
+  renderCatChips();
+  loadProdutos();
+}
+
+function selectCat(nome) { selectedCat = nome; renderSubChips(); loadProdutos(); }
+
+// Escapa para uso dentro de atributo onclick com aspas simples
+function jsq(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 
 // === STOCK HELPERS ===
 
@@ -288,10 +331,13 @@ async function loadProdutos() {
   const grid = document.getElementById('produtoGrid');
   const busca = document.getElementById('buscaProduto').value.trim();
 
-  let url = '/hub_v_catalogo?ativo=eq.true&select=produto_id,sku,nome,descricao,categoria_nome,categoria_id,categoria_oculta,estoque_disponivel,status_estoque,backorder_disponivel,previsao_chegada,foto_paths,destaque&order=sku.asc';
+  let url = '/hub_v_catalogo?ativo=eq.true&select=produto_id,sku,nome,descricao,categoria_nome,categoria_id,categoria_grupo,categoria_oculta,estoque_disponivel,status_estoque,backorder_disponivel,previsao_chegada,foto_paths,destaque'
+          + '&order=categoria_grupo_ordem.asc,categoria_ordem.asc,sku.asc';
 
   if (selectedCat) {
     url += '&categoria_nome=eq.' + encodeURIComponent(selectedCat);
+  } else if (selectedGrupo) {
+    url += '&categoria_grupo=eq.' + encodeURIComponent(selectedGrupo);
   } else if (!busca) {
     // Sem filtro e sem busca: pecas de vista explodida ficam de fora da vitrine.
     url += '&categoria_oculta=is.false';
