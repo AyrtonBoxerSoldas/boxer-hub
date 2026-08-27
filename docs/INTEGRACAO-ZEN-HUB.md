@@ -141,6 +141,83 @@ Duplicar o conector é o caminho mais rápido no curto prazo e o mais caro depoi
 
 ---
 
+## 5b. Contrato de autenticação — extraído da spec em 2026-08-27
+
+Spec pública: `https://api.zenerp.app.br/platform/openapi.json` (2,18 MB,
+889 paths, 342 schemas). O Swagger UI aponta para ela via
+`swagger-initializer.js`.
+
+```
+POST /auth/login
+  header: tenant: <valor>          ← obrigatório, inclusive no login
+  body:   { "username": "...", "password": "..." }
+  → 200:  { "accessToken": "...", "refreshToken": "..." }
+
+Demais chamadas:
+  Authorization: Bearer <accessToken>
+  tenant: <valor>
+```
+
+`securitySchemes`: `Auth` = http bearer JWT · `Tenant` = apiKey no header `tenant`.
+Há `POST /auth/refresh` para renovar sem novo login.
+
+**Paginação:** todo GET de listagem aceita `q`, `order`, `first`, `max`. Sem
+`max` explícito o servidor provavelmente aplica um default — **paginar sempre**,
+pelo mesmo motivo que segurou as fotos da BOM.
+
+**Sintaxe de `q` é desconhecida.** A spec declara só `type: string`, sem
+`description`. Precisa ser descoberta em teste — é o que decide se dá para
+buscar cliente por CNPJ direto ou se será preciso varrer e filtrar localmente.
+
+### Mapeamento `catalog.person.Person` → `hub_clientes`
+
+| Zen | Hub | Observação |
+|---|---|---|
+| `id` | `erp_cliente_id` | hoje NULO nos 2 clientes |
+| `documentNumber` (com `documentType = BR_CNPJ`) | `cnpj` | **chave de casamento** |
+| `name` | `razao_social` | |
+| `fantasyName` | `nome_fantasia` | |
+| `document2Number` (`BR_INSCRICAO_ESTADUAL`) | `inscricao_estadual` | |
+| `email`, `phone` | `email_principal`, `telefone` | |
+| `zipcode`/`street`/`number`/`complement`/`district`/`city` | `hub_enderecos` | |
+| `personSalesperson` | `representante_id` | **é outra `Person`** |
+| `priceListRetail` | `tabela_preco_id` | |
+| `category1`–`category5` | `segmento`, `canal`, `porte` | **confirmar antes de usar** |
+| — | `limite_credito` | **não vem de Person** → `credit.CreditLineItem` |
+
+`personSalesperson` ser do tipo `Person` significa que **cliente e representante
+saem da mesma entidade** — um único conector popula `hub_clientes` e
+`hub_representantes`, e `hub_carteira` sai da própria referência.
+
+`catalog.person.PersonCompact` (`id`, `type`, `name`, `fantasyName`,
+`documentType`, `documentNumber`, `tags`) é a versão leve — suficiente para o
+casamento inicial por CNPJ, sem trafegar o registro completo.
+
+### Duas armadilhas já identificadas
+
+**1. `Person` não tem campo de "ativo".** Nenhum schema de person na spec tem
+`active`, `status`, `enabled` ou `blocked`. Então "importar os clientes ativos"
+não pode ser um filtro na API — precisa de um critério de negócio (quem comprou
+nos últimos N meses? quem tem `personGroup` X? quem tem título ou pedido?).
+**Decisão pendente do André.**
+
+**2. Formato de CNPJ inconsistente já no Hub:**
+
+```
+00.000.000/0001-00     ← com máscara
+11222333000181         ← sem máscara
+```
+
+O CNPJ é a chave de casamento com `documentNumber`. É o mesmo problema do
+`'99032 '` que quebrou o `on_conflict` do catálogo — e desta vez dá para
+resolver antes. Normalizar para só dígitos, dos dois lados, com `CHECK`
+constraint em `hub_clientes.cnpj`.
+
+O formato usado pelo Zen em `documentNumber` também precisa ser verificado —
+não presumir que é só dígitos.
+
+---
+
 ## 6. Ordem sugerida
 
 1. **Autenticar** — `POST /auth/login`, descobrir o header `Tenant` correto
@@ -158,12 +235,21 @@ Duplicar o conector é o caminho mais rápido no curto prazo e o mais caro depoi
 
 ## 7. A confirmar no ambiente real
 
-Nada abaixo deve ser presumido a partir do nome do endpoint:
+Nada abaixo deve ser presumido a partir do nome do endpoint ou do schema:
 
-- [ ] Quais `stockCluster` existem e quais valem para revenda
-- [ ] Quais status de `Reservation` descontam do disponível
-- [ ] `Product.code` é o mesmo SKU da tabela de preço?
-- [ ] Como `productPacking` se relaciona com `product`
-- [ ] Valores aceitos por `Watcher.event`
+**Bloqueia o conector de cliente:**
+- [ ] Credenciais: `username`, `password` e o valor do header `tenant`
+- [ ] Sintaxe do parâmetro `q` — dá para filtrar por CNPJ direto?
+- [ ] Formato de `documentNumber` no Zen (com ou sem máscara)
+- [ ] **Critério de "cliente ativo"** — `Person` não tem essa flag
+- [ ] Uso real de `category1`–`category5` em `Person`
+
+**Depois:**
 - [ ] Nós de workflow cadastrados (`WorkflowNode`)
+- [ ] Valores aceitos por `Watcher.event`
 - [ ] Se há ambiente de sandbox ou só produção
+
+**Pendência declarada — estoque e previsão** (André resolve em outro momento):
+- [ ] Quais status de `Reservation` descontam do disponível
+- [ ] Código exato do cluster de máquinas novas (`MAQ`)
+- [ ] Origem da previsão de chegada (não virá do Zen por ora)
