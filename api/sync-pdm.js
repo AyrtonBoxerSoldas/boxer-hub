@@ -69,36 +69,47 @@ module.exports = async function handler(req, res) {
     'Authorization': 'Bearer ' + PDM_SERVICE
   };
 
+  // PostgREST corta em 1000 linhas por padrao, sem erro. bom_itens tem 1576
+  // registros com foto — sem paginar, 576 sumiam silenciosamente.
+  async function fetchAll(url, headers, rotulo) {
+    const out = [];
+    const sep = url.includes('?') ? '&' : '?';
+    for (let offset = 0; ; offset += 1000) {
+      const r = await fetch(`${url}${sep}limit=1000&offset=${offset}`, { headers });
+      if (!r.ok) throw new Error(`Erro ao buscar ${rotulo}: ${r.status} ${await r.text()}`);
+      const lote = await r.json();
+      out.push(...lote);
+      if (lote.length < 1000) return out;
+    }
+  }
+
   try {
     // 0 — Buscar apenas os SKUs que estão em tabela_preco_itens (FONTE DE VERDADE)
     console.log('[SYNC] Buscando SKUs com preço ativo...');
-    const precoRes = await fetch(
+    const precosData = await fetchAll(
       HUB_URL + '/rest/v1/hub_tabela_preco_itens?select=produto_id',
-      {
-        headers: hubH('GET'),
-        method: 'GET'
-      }
+      hubH('GET'), 'tabela_preco_itens'
     );
-    if (!precoRes.ok) throw new Error('Erro ao buscar tabela_preco_itens: ' + precoRes.status);
-    const precosData = await precoRes.json();
     const validProdutoIds = new Set(precosData.map(p => p.produto_id).filter(Boolean));
     console.log(`[SYNC] ${validProdutoIds.size} produtos encontrados na tabela de preços`);
 
     // 1 — Produtos ativos do PDM
-    const prodRes = await fetch(PDM_URL + '/rest/v1/produtos?status=eq.Ativo&select=*&order=codigo', { headers: pdmH });
-    if (!prodRes.ok) throw new Error('Erro ao buscar produtos PDM: ' + prodRes.status);
-    const pdmProdutos = await prodRes.json();
+    const pdmProdutos = await fetchAll(
+      PDM_URL + '/rest/v1/produtos?status=eq.Ativo&select=*&order=codigo', pdmH, 'produtos PDM'
+    );
     console.log(`[SYNC] ${pdmProdutos.length} produtos ativos no PDM`);
 
     // 2 — Documentos ativos do PDM
-    const docRes = await fetch(PDM_URL + '/rest/v1/documentos?ativo=eq.true&select=id,produto_id,nome,tipo,arquivo_url,revisao', { headers: pdmH });
-    if (!docRes.ok) throw new Error('Erro ao buscar documentos PDM: ' + docRes.status);
-    const pdmDocs = await docRes.json();
+    const pdmDocs = await fetchAll(
+      PDM_URL + '/rest/v1/documentos?ativo=eq.true&select=id,produto_id,nome,tipo,arquivo_url,revisao',
+      pdmH, 'documentos PDM'
+    );
 
     // 2b — BOM itens com foto
-    const bomRes = await fetch(PDM_URL + '/rest/v1/bom_itens?imagem_url=not.is.null&select=part_number,descricao,imagem_url', { headers: pdmH });
-    if (!bomRes.ok) throw new Error('Erro ao buscar bom_itens PDM: ' + bomRes.status);
-    const pdmBomItens = await bomRes.json();
+    const pdmBomItens = await fetchAll(
+      PDM_URL + '/rest/v1/bom_itens?imagem_url=not.is.null&select=part_number,descricao,imagem_url',
+      pdmH, 'bom_itens PDM'
+    );
     const bomFotoMap = {};
     pdmBomItens.forEach(b => {
       const pn = normSku(b.part_number);
@@ -208,17 +219,24 @@ module.exports = async function handler(req, res) {
     }
     console.log(`[SYNC] ${hubProdutos.length} produtos sincronizados no Hub`);
 
+    // O catalogo (583 SKUs) e maior que o PDM (263). Montar o indice apenas com
+    // o retorno do upsert limitava as fotos aos produtos que existem no PDM —
+    // era por isso que nenhuma foto de bom_itens entrava: os part_numbers que
+    // casam com o catalogo nao estao todos em produtos do PDM.
+    const todosHubProdutos = await fetchAll(
+      HUB_URL + '/rest/v1/hub_produtos?ativo=eq.true&select=id,sku', hubH('GET'), 'hub_produtos'
+    );
     const skuToHubId = {};
-    hubProdutos.forEach(p => skuToHubId[normSku(p.sku)] = p.id);
+    todosHubProdutos.forEach(p => skuToHubId[normSku(p.sku)] = p.id);
 
     // 5 — Sincronizar APENAS anexos dos SKUs com preço ativo
     console.log('[SYNC] Limpando anexos antigos...');
     // Set, nao array: o lookup roda dentro de tres loops sobre milhares de itens.
     const validHubIds = new Set(
-      hubProdutos.filter(p => validProdutoIds.has(p.id)).map(p => p.id)
+      todosHubProdutos.filter(p => validProdutoIds.has(p.id)).map(p => p.id)
     );
 
-    console.log(`[SYNC] ${validHubIds.size} produtos têm preço ativo (dos ${hubProdutos.length})`);
+    console.log(`[SYNC] ${validHubIds.size} produtos com preço ativo (catálogo: ${todosHubProdutos.length}, PDM: ${hubProdutos.length})`);
 
     // Limpar anexos APENAS dos produtos com preço ativo
     const validIdList = [...validHubIds];
@@ -368,8 +386,10 @@ module.exports = async function handler(req, res) {
     return res.status(anexoErrors.length > 0 ? 207 : 200).json({
       ok: anexoErrors.length === 0,
       produtos_com_preco_ativo: validHubIds.size,
-      produtos_sincronizados: hubProdutos.length,
-      produtos_orfaos_nao_sincronizados: hubProdutos.length - validHubIds.size,
+      produtos_no_catalogo: todosHubProdutos.length,
+      produtos_vindos_do_pdm: hubProdutos.length,
+      // SKUs com preco que o PDM nao cobre — teto da cobertura de fotos
+      produtos_sem_origem_no_pdm: validHubIds.size - hubProdutos.filter(p => validProdutoIds.has(p.id)).length,
       categorias: categorias.length,
       subcategorias: subcategorias.length,
       fotos_produto: photoStats.produtoImagem,
