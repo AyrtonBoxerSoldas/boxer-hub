@@ -28,45 +28,34 @@ disponível = Stock.quantity
              − Reservation ativas
 ```
 
-Três decisões precisam ser tomadas antes de escrever o conector — e nenhuma
-delas é técnica:
+### Decidido em 2026-08-27
 
-### 1.1 Quais `stockCluster` contam?
+| Questão | Decisão |
+|---|---|
+| Quais `stockCluster` | **Somente máquinas novas (`MAQ`).** Todos os demais clusters são ignorados — avariadas, Mercado Livre e afins não podem aparecer como disponíveis para revenda |
+| SKU | **Mesmo código entre as fontes** — `hub_produtos.sku` = `Product.code` |
+| Unidade | **Sempre item unitário.** A Boxer ainda não trabalha com caixa master, então `productPacking` não introduz conversão por ora |
+| Previsão de chegada | **Não puxar do Zen agora** — será resolvida por outro caminho. `hub_produtos.previsao_chegada` continua nulo |
 
-`material.StockCluster` agrupa o estoque. A Boxer tem tipos distintos (máquinas,
-avariadas, Mercado Livre). **Vender para revenda o que está no cluster de
-avariadas ou reservado ao Mercado Livre seria um erro grave.**
+Consequência do recorte `MAQ`: o estoque só terá valor para os produtos de
+máquina. Consumíveis, acessórios e peças continuam sem informação — o
+`status_estoque = 'sem_info'` da view segue valendo para eles, e o front segue
+omitindo o selo. Isso é intencional, não lacuna.
 
-→ Rodar `GET /material/stockCluster` e decidir cluster por cluster.
-
-### 1.2 Reserva conta como indisponível?
+### Em aberto — reserva desconta?
 
 `material.Reservation` tem status
 `SYSTEM/LOCKED/PREPARING/PREPARED/APPROVED/STARTED/FINISHED/DELETED`.
-Uma reserva `PREPARING` provavelmente ainda não deveria bloquear; uma `APPROVED`
-provavelmente sim.
+Ainda não definido quais descontam do disponível.
 
-→ Definir quais status descontam do disponível.
+**Enquanto não houver decisão, o conector não deve descontar reserva nenhuma** —
+e isso precisa estar registrado, porque significa que o Hub pode mostrar como
+disponível um item já comprometido. Se isso for inaceitável, a decisão vira
+bloqueante.
 
-### 1.3 `Stock` ou `StockAvailability`?
-
-- `material.Stock` — saldo físico atual
-- `material.StockAvailability` — projetado, com `type` (INCOMING/OUTGOING/STOCK)
-  e `date`
-
-`StockAvailability` é mais interessante para o Hub: além do saldo atual, o campo
-`date` das entradas previstas (`INCOMING`) alimenta diretamente
-`hub_produtos.previsao_chegada`, que hoje está sempre nulo. Isso destrava o
-status "Sob encomenda" com data, em vez de só "Indisponível".
-
-### 1.4 Casamento de SKU
-
-`hub_produtos.sku` ↔ `catalog.product.Product.code`.
-Atenção: `SaleItem` e `Stock` referenciam `productPacking`, não `product`
-direto — pode haver uma camada de embalagem (unidade vs. caixa) entre os dois.
-
-→ Confirmar se `Product.code` é o mesmo código da tabela de preço, e como
-`productPacking` se relaciona com `product`.
+Caminho para resolver sem adivinhar: comparar, para alguns SKUs de máquina, o
+saldo do Zen com o que a operação considera vendável. A diferença mostra quais
+reservas contam.
 
 ---
 
@@ -109,12 +98,17 @@ Duas opções:
 | Status | Hub decide, empurra para o Zen | Zen decide, Hub espelha via webhook |
 | Risco | Divergir do ERP | Hub depende do Zen estar no ar |
 
-Recomendação: **Zen como dono a partir da submissão.** O Hub é dono do rascunho
-e do carrinho; ao submeter, cria um `Quote`/`Sale` no Zen e passa a espelhar o
-status. Evita reimplementar regra de crédito e workflow que já existem no ERP.
+**Decidido em 2026-08-27: Zen como dono a partir da submissão.** O Hub é dono do
+rascunho e do carrinho; ao submeter, cria um `Quote`/`Sale` no Zen e passa a
+espelhar o status. Evita reimplementar regra de crédito e workflow que já existem
+no ERP.
 
-Note que `sale.Quote` tem `quoteOpSubmit` e `quoteOpApprove` — o pedido do
-revendedor encaixa naturalmente como Quote até ser aprovado.
+`sale.Quote` tem `quoteOpSubmit` e `quoteOpApprove` — o pedido do revendedor
+encaixa naturalmente como Quote até ser aprovado.
+
+Implicação prática: `hub_pedidos.status` deixa de ser decidido pelo Hub e passa a
+ser campo espelhado. O único status que o Hub controla sozinho é `rascunho`.
+`hub_pedidos` ganha uma referência ao id do Zen (`erp_pedido_id`).
 
 ---
 
