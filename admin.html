@@ -149,9 +149,13 @@ select,input,textarea{font-family:Outfit,sans-serif}
         <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:.5px">Canais</div>
       </div>
     </div>
-    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#4a5568;margin-bottom:12px">
-      <input type="checkbox" id="clientesSoBloqueados" checked onchange="loadClientes()"> Mostrar apenas bloqueados
-    </label>
+    <div style="margin-bottom:12px">
+      <select id="clientesFiltro" onchange="loadClientes()" style="padding:6px 10px;border:1px solid #c3cfe2;border-radius:6px;font-family:Outfit;font-size:12px">
+        <option value="bloqueados" selected>Somente bloqueados</option>
+        <option value="ativos">Somente nao bloqueados</option>
+        <option value="">Todos</option>
+      </select>
+    </div>
     <div id="clientesList"></div>
   </div>
   <div class="panel-content hidden" id="tab-campanhas">
@@ -269,29 +273,33 @@ async function loadUsuarios() {
 
 async function loadClientes() {
   const wrap = document.getElementById('clientesList');
-  const soBloqueados = document.getElementById('clientesSoBloqueados').checked;
+  const modo = document.getElementById('clientesFiltro').value; // '' | 'bloqueados' | 'ativos'
   try {
-    const [totais, bloqueados, comGrupo, canais] = await Promise.all([
-      sb('/hub_clientes?select=id&ativo=eq.true', 'GET').then(r => r.length),
-      sb('/hub_clientes?select=id&ativo=eq.true&bloqueado=eq.true', 'GET').then(r => r.length),
-      sb('/hub_clientes?select=id&ativo=eq.true&grupo_nome=not.is.null', 'GET').then(r => r.length),
-      sb('/hub_clientes?select=canal&ativo=eq.true', 'GET').then(r => new Set(r.map(c => c.canal).filter(Boolean)).size)
+    const [totais, bloqueados, comGrupo, canaisPorNome] = await Promise.all([
+      sbCount('/hub_clientes?select=id&ativo=eq.true'),
+      sbCount('/hub_clientes?select=id&ativo=eq.true&bloqueado=eq.true'),
+      sbCount('/hub_clientes?select=id&ativo=eq.true&grupo_nome=not.is.null'),
+      Promise.all(['Hibrido', 'Ecommerce', 'Varejo'].map(c =>
+        sbCount('/hub_clientes?select=id&ativo=eq.true&canal=eq.' + c).then(n => [c, n])))
     ]);
     document.getElementById('statClientesTotal').textContent = totais;
     document.getElementById('statClientesBloqueados').textContent = bloqueados;
     document.getElementById('statClientesComGrupo').textContent = comGrupo;
-    document.getElementById('statClientesCanais').textContent = canais;
+    document.getElementById('statClientesCanais').textContent =
+      canaisPorNome.map(([c, n]) => c + ': ' + n).join(' / ');
 
-    const filtro = soBloqueados ? '&bloqueado=eq.true' : '';
+    const filtro = modo === 'bloqueados' ? '&bloqueado=eq.true'
+                 : modo === 'ativos' ? '&bloqueado=eq.false' : '';
+    const LIMITE = 500;
     const clientes = await sb('/hub_clientes?ativo=eq.true' + filtro +
-      '&order=nome_exibicao.asc&select=id,nome_exibicao,cnpj,canal,grupo_nome,status_cadastro,bloqueado,tags&limit=500');
+      '&order=nome_exibicao.asc&select=id,nome_exibicao,cnpj,canal,grupo_nome,status_cadastro,bloqueado,tags&limit=' + LIMITE);
 
     if (!clientes.length) {
-      wrap.innerHTML = '<div class="empty-state"><h3>' +
-        (soBloqueados ? 'Nenhum cliente bloqueado' : 'Nenhum cliente') + '</h3></div>';
+      wrap.innerHTML = '<div class="empty-state"><h3>Nenhum cliente encontrado</h3></div>';
       return;
     }
-    wrap.innerHTML = `<div style="overflow-x:auto"><table>
+    wrap.innerHTML = `${clientes.length === LIMITE ? `<div style="font-size:12px;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:8px 12px;margin-bottom:10px">Mostrando os primeiros ${LIMITE} — refine o filtro para ver o restante.</div>` : ''}
+    <div style="overflow-x:auto"><table>
       <thead><tr><th>Cliente</th><th>CNPJ</th><th>Canal</th><th>Grupo</th><th>Status</th><th>Tags</th><th></th></tr></thead>
       <tbody>${clientes.map(c => `<tr>
         <td><strong>${c.nome_exibicao || ''}</strong></td>
@@ -1115,11 +1123,11 @@ async function loadCatalogo() {
   const wrap = document.getElementById('catalogoList');
   try {
     const [produtos, categorias, anexos, precoItens, totalAnexos] = await Promise.all([
-      sb('/hub_produtos?select=id,sku,nome,descricao,categoria_id,erp_produto_id,ativo,atualizado_em&order=nome.asc&ativo=eq.true'),
-      sb('/hub_categorias?select=id,nome,slug,categoria_pai_id&ativo=eq.true&order=nome.asc'),
-      sb('/hub_produto_anexos?select=produto_id,tipo&tipo=eq.foto'),
-      sb('/hub_tabela_preco_itens?select=produto_id'),
-      sb('/hub_produto_anexos?select=id')
+      sb('/hub_produtos?select=id,sku,nome,descricao,categoria_id,erp_produto_id,ativo,atualizado_em&order=nome.asc&ativo=eq.true&limit=5000'),
+      sb('/hub_categorias?select=id,nome,slug,categoria_pai_id&ativo=eq.true&order=nome.asc&limit=5000'),
+      sb('/hub_produto_anexos?select=produto_id,tipo&tipo=eq.foto&limit=5000'),
+      sb('/hub_tabela_preco_itens?select=produto_id&limit=5000'),
+      sb('/hub_produto_anexos?select=id&limit=5000')
     ]);
 
     const fotosPorProduto = {};
