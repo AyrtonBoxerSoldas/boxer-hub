@@ -22,12 +22,26 @@ A tabela de preços vive no **schema `public` do mesmo projeto Supabase**:
 hub_produtos.sku → public.produtos.codigo → public.categorias.nome
 ```
 
-Somente `tabela_id IN (1, 2)`. **A tabela 3 é cópia de teste e fica de fora** —
-se um dia virar produção, a regra precisa ser explicitada, não deduzida.
+### Somente a tabela Principal (`tabela_id = 1`)
+
+**Automação é venda para cliente final, não para revenda** — não pode ser
+comprada pelo revendedor no Hub (regra confirmada em 2026-08-27). A tabela 3
+("Revendas Teste") é cópia de teste e também fica de fora.
+
+A regra é de inclusão, não de exclusão: **se o produto está na Principal, ele
+aparece** — mesmo que também exista na Automação. Os 30 SKUs presentes nas duas
+tabelas continuam no catálogo, com o preço da Principal. Só saem os 23
+exclusivos da Automação (mesas posicionadoras, tochas robóticas, fontes para
+robô, lasers LQ, chiller).
+
+Por isso `CONSUMÍVEIS LASER` e `CONSUMÍVEIS TOCHAS ROBÔ` permanecem: são peças
+de reposição listadas na Principal.
+
+Se a Automação um dia entrar no Hub, o caminho **não** é reabrir o filtro para
+todos — é segmentar por perfil de cliente.
 
 O join é `JOIN`, não `LEFT JOIN`: produto sem tabela de preço não aparece no
-catálogo (ADR-004 — a tabela de preços é a fonte oficial). Hoje isso exclui
-**107 produtos**.
+catálogo (ADR-004 — a tabela de preços é a fonte oficial).
 
 **Ausência da tabela de preço significa fora de linha** (confirmado em
 2026-08-27). Não é lacuna de cadastro: produtos descontinuados saem da tabela e,
@@ -39,11 +53,46 @@ primeira vista, mas é o comportamento correto.
 Ela tem nomes duplicados em pais diferentes ("Grandes" 4×, "Acessórios de
 solda" 6×) porque o `catLookup` do sync indexava por nome, não por slug.
 
+### Agrupamento e ordem — `comercial.hub_categoria_config`
+
+Máquinas no topo, consumíveis e acessórios no fim. A ordem é decisão comercial e
+muda com o tempo, então vive numa **tabela**, não num `CASE` na view: mudar a
+ordem ou ocultar uma categoria é um `UPDATE`, sem migration nem deploy.
+
+| # | Grupo | Produtos |
+|---|---|---|
+| 1 | Máquinas | 53 |
+| 2 | Automação | — (inativo, ver acima) |
+| 3 | Proteção | 18 |
+| 4 | Tochas | 39 |
+| 5 | Acessórios | 108 |
+| 6 | Consumíveis | 207 |
+| 7 | Peças *(oculto)* | 135 |
+
+Total: 425 na vitrine + 135 ocultos = **560**.
+
+> **Por que não usar `public.categorias.ordem`:** ela numera **por tabela de
+> preço**. Principal e Automação ambas começavam em 0, então LASER e ROBÔS
+> apareciam embaralhados no meio das máquinas. Não era ordenação faltando — era
+> colisão de numeração.
+
+O `LEFT JOIN` na config é proposital: categoria nova cai em "Outros" no fim, em
+vez de sumir do catálogo.
+
+### Navegação em dois níveis
+
+28 categorias não cabem numa linha de chips — cortavam na borda (MÁSCARAS
+aparecia pela metade). O front mostra 6 chips de grupo com `flex-wrap` e, abaixo,
+as categorias do grupo selecionado. Grupo com categoria única seleciona direto,
+sem sub-chip redundante.
+
 ### Categorias ocultas
 
 `VISTA EXPLODIDA *` (135 produtos, peças de reposição) tem
-`categoria_oculta = true`. Fora dos chips principais; acessível por filtro
-explícito ou busca por código/nome.
+`categoria_oculta = true` — vindo da config, não derivado do prefixo do nome.
+O grupo "Peças" aparece nos chips com estilo discreto (tracejado, cinza):
+acessível por escolha explícita ou por busca de código/nome, sem competir com as
+categorias de venda.
 
 ---
 
@@ -82,28 +131,28 @@ Medido em 2026-08-27, após o sync com paginação e prioridade de fonte:
 
 | | |
 |---|---|
-| SKUs no catálogo | 583 |
-| **Com foto exibível** | **95 (16,3%)** — 73 do PDM, 28 da BOM |
-| Sem foto em nenhuma fonte | 488 |
+| SKUs no catálogo | 560 |
+| **Com foto exibível** | **91 (16,3%)** — do PDM e da BOM |
+| Sem foto em nenhuma fonte | 469 |
 | Anexos totais | 498 |
 
-### Por que o painel admin mostra 102 e o catálogo 95
+### Por que o painel admin mostra um número maior que o catálogo
 
 Contam universos diferentes, e ambos estão certos:
 
 - **102** — produtos com qualquer anexo foto, sobre os 691 de `hub_produtos`.
-  É o acervo total, incluindo fora de linha. Decidido manter assim.
+  É o acervo total, incluindo fora de linha e Automação. Decidido manter assim.
 - **101** — descontando 1 produto cuja única foto é link SharePoint, que não
   renderiza.
-- **95** — o que o revendedor vê: apenas produtos na tabela de preço.
+- **91** — o que o revendedor vê: só a tabela Principal.
 
-Os 6 de diferença são produtos fora de linha que ainda têm foto e cadastro no
-PDM.
+A diferença são produtos fora de linha ou de Automação que ainda têm foto e
+cadastro no PDM. **Não é erro de sync.**
 
 **Teto imposto pela origem, não pelo código:** o PDM tem 280 produtos; o
-catálogo tem 583. 422 SKUs não existem no PDM. As 1.576 fotos de `bom_itens`
-são de componentes internos (relés, IGBTs, placas) — servem para peças de
-reposição, não para produtos acabados.
+catálogo tem 560. A maior parte dos SKUs do catálogo não existe no PDM. As 1.576
+fotos de `bom_itens` são de componentes internos (relés, IGBTs, placas) — servem
+para peças de reposição, não para produtos acabados.
 
 Aumentar a cobertura é trabalho de conteúdo: cadastrar no PDM ou migrar os
 204 arquivos do SharePoint para o Supabase Storage.
