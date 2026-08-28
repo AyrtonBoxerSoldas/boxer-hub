@@ -82,6 +82,7 @@ tbody tr:hover{background:#f0f7ff}
 .s-low{color:#f59e0b}.s-low .dot{background:#f59e0b}
 .s-bo{color:#718096}.s-bo .dot{background:#718096}
 .s-no{color:#dc2626}.s-no .dot{background:#dc2626}
+.s-prev{color:#1d4ed8}.s-prev .dot{background:#1d4ed8}
 </style>
 </head>
 <body>
@@ -181,6 +182,15 @@ async function renderCarrinho() {
     } catch {}
   }
 
+  const prevMap = {};
+  try {
+    await fetchDisponibilidadeEstoque(); // aquece o cache uma unica vez
+    await Promise.all(cart.map(async item => {
+      const prev = await fetchDisponibilidadePrevistaSku(item.sku, item.quantidade);
+      if (prev) prevMap[item.sku] = prev;
+    }));
+  } catch {}
+
   const totalVal = cart.reduce((s, i) => s + (i.preco_base * i.quantidade), 0);
 
   wrap.innerHTML = `
@@ -188,6 +198,8 @@ async function renderCarrinho() {
       ${cart.map((item, idx) => {
         const st = stockMap[item.produto_id];
         const stInfo = st ? stockLabel(st) : { cls: '', text: '' };
+        const prev = prevMap[item.sku];
+        const prevTexto = prev ? (prev.iso ? 'Disponibilidade Prevista para ' + fmtData(prev.iso) : 'Sem Disponibilidade Prevista') : '';
         return `
         <div class="cart-item">
           <div class="cart-item-info">
@@ -195,6 +207,7 @@ async function renderCarrinho() {
             <div class="cart-item-nome">${esc(item.nome || item.sku)}</div>
             <div class="cart-item-preco">${fmtMoeda(item.preco_base)} un</div>
             ${stInfo.text ? '<div class="cart-item-stock ' + stInfo.cls + '"><span class="dot"></span>' + stInfo.text + '</div>' : ''}
+            ${prevTexto ? '<div class="cart-item-stock s-prev"><span class="dot"></span>' + prevTexto + '</div>' : ''}
           </div>
           <div class="cart-item-qty">
             <label>Qtd</label>

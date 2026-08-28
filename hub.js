@@ -67,6 +67,103 @@ async function sbRpc(fn, params = {}) {
   return r.json();
 }
 
+// === FUP (previsao de disponibilidade / materiais em transito) ===
+// Dados vem de um projeto Supabase separado, protegido por RLS que exige
+// login proprio do FUP. Login e feito so no servidor (api/disponibilidade.js)
+// — o front nunca ve a credencial nem o token do FUP, so o resultado.
+
+let _dispCache = null;
+
+// Retorna { disponibilidade: {porCodigo, reservasMap, boxerData, lastUpdate},
+//           enderecosStatus: {enderecosMap, statusMap, lastUpdateEnderecos, lastUpdateStatus} }
+// ou null se falhar.
+async function fetchDisponibilidadeEstoque() {
+  if (_dispCache) return _dispCache;
+  try {
+    const r = await fetch('/api/disponibilidade', {
+      headers: { 'Authorization': 'Bearer ' + (SESSION?.access_token || '') }
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    _dispCache = data;
+    return data;
+  } catch (e) {
+    console.error('[FUP] Falha ao buscar disponibilidade:', e);
+    return null;
+  }
+}
+
+// Aplica o filtro obrigatorio do painel FUP (stockStatus !== 'ok') sobre
+// dashboard_data.all_data. Os demais filtros do painel (busca, categoria,
+// status, zero/baixo) sao opcionais de UI — nao entram aqui, so essa base
+// para calculo. Retorna [] se a busca falhar.
+async function fetchMateriaisEmTransito() {
+  const disp = await fetchDisponibilidadeEstoque();
+  if (!disp) return [];
+  return Object.values(disp.disponibilidade.porCodigo)
+    .flat()
+    .filter(r => r.stockStatus !== 'ok');
+}
+
+// Calcula a data prevista de disponibilidade suficiente para cobrir `deficit`
+// unidades, andando pelos registros FUP de um mesmo codigo em ordem crescente
+// de prevRep e descontando a fila de reservas em aberto. Retorna string ISO
+// (prevRep do registro que satisfaz) ou null se nao houver previsao.
+function calcularDisponibilidadePrevista(records, deficit) {
+  if (!Array.isArray(records) || !records.length || !(deficit > 0)) return null;
+
+  const toDate = v => {
+    const d = v ? new Date(v) : null;
+    return d && !isNaN(d) ? d : null;
+  };
+
+  const ordenados = [...records].sort((a, b) => {
+    const da = toDate(a.prevRep);
+    const db = toDate(b.prevRep);
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da - db;
+  });
+
+  let reservasRestantes = Number(ordenados[0].reservas) || 0;
+  let disponivelAcumulado = 0;
+
+  for (const rec of ordenados) {
+    const qty = Number(rec.qtd) || 0;
+    if (reservasRestantes > 0) {
+      if (qty <= reservasRestantes) {
+        reservasRestantes -= qty;
+        continue;
+      }
+      disponivelAcumulado += (qty - reservasRestantes);
+      reservasRestantes = 0;
+    } else {
+      disponivelAcumulado += qty;
+    }
+    if (disponivelAcumulado >= deficit) return rec.prevRep || null;
+  }
+  return null;
+}
+
+// Busca a disponibilidade prevista para um sku especifico, comparando o
+// estoque FUP com a quantidade desejada no carrinho. Retorna:
+// - null: nao ha deficit (quantidade <= estoque) ou falha ao buscar dados — nao exibir nada.
+// - { iso: <string> }: deficit coberto pelas remessas em transito na data indicada.
+// - { iso: null }: ha deficit mas nem as remessas em transito o cobrem — exibir "Sem Disponibilidade Prevista".
+async function fetchDisponibilidadePrevistaSku(sku, quantidade) {
+  const disp = await fetchDisponibilidadeEstoque();
+  if (!disp) return null;
+  const records = disp.disponibilidade.porCodigo[sku];
+  if (!Array.isArray(records) || !records.length) return null;
+
+  const estoque = Number(records[0].estoque) || 0;
+  const deficit = quantidade - estoque;
+  if (deficit <= 0) return null;
+
+  return { iso: calcularDisponibilidadePrevista(records, deficit) };
+}
+
 // === AUTH ===
 
 async function doLogin() {
