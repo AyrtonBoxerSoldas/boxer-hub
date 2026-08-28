@@ -152,6 +152,37 @@ module.exports = async function handler(req, res) {
       achados.endereco = { erro: e.message.slice(0, 150) };
     }
 
+    // 6 — tabela de preco e limite de credito por cliente: a doc fala em
+    // priceListCost/priceListRetail no Person, mas isso nao foi confirmado
+    // contra dado real ainda. hub_clientes.tabela_preco_id e limite_credito
+    // estao vazios pra quase todo mundo -- descobrir de onde isso deveria vir.
+    try {
+      const comDados = amostra.find(p =>
+        /price|credit|limit/i.test(Object.keys(p).join(' '))) || amostra[0];
+      achados.preco_credito = {
+        campos_no_person: Object.keys(comDados).filter(k =>
+          /price|credit|limit|preco|credito|limite/i.test(k)),
+        priceListRetail: comDados.priceListRetail ?? null,
+        priceListCost: comDados.priceListCost ?? null,
+        creditLine: comDados.creditLine ?? null
+      };
+      // tenta os candidatos mais prováveis de endpoint relacionado a credito
+      for (const [rotulo, caminho] of [
+        ['personCredit', '/catalog/person/personCredit'],
+        ['personFinance', '/catalog/person/personFinance'],
+        ['saleProfile', '/sale/saleProfile']
+      ]) {
+        try {
+          const linhas = await zenGet(caminho, { max: 3, limite: 3 });
+          achados.preco_credito[rotulo] = { existe: true, campos: linhas.length ? Object.keys(linhas[0]) : [] };
+        } catch (e) {
+          achados.preco_credito[rotulo] = { existe: false, erro: e.message.slice(0, 100) };
+        }
+      }
+    } catch (e) {
+      achados.preco_credito = { erro: e.message.slice(0, 150) };
+    }
+
     console.log('[ZEN] achados:', JSON.stringify(achados, null, 2));
     return res.status(200).json({ ok: true, ...achados });
 
