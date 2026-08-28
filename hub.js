@@ -30,6 +30,25 @@ async function sb(path, method = 'GET', body = null) {
   return (method === 'GET' || method === 'POST') ? r.json() : r;
 }
 
+// Conta linhas sem baixar os dados -- sb() normal baixa o array inteiro e o
+// PostgREST corta silenciosamente em 1000 por padrao, entao contar via
+// r.length mente acima disso. count=exact + Range 0-0 devolve so o total.
+async function sbCount(path) {
+  const r = await fetch(SB_URL + '/rest/v1' + path, {
+    method: 'GET',
+    headers: {
+      'apikey': SB_ANON,
+      'Authorization': 'Bearer ' + (SESSION?.access_token || SB_ANON),
+      'Accept-Profile': 'comercial',
+      'Prefer': 'count=exact',
+      'Range': '0-0'
+    }
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const range = r.headers.get('content-range');
+  return range ? (parseInt(range.split('/')[1], 10) || 0) : 0;
+}
+
 async function sbRpc(fn, params = {}) {
   const r = await fetch(SB_URL + '/rest/v1/rpc/' + fn, {
     method: 'POST',

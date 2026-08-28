@@ -124,6 +124,34 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // 5 — endereco de entrega: personShipping vem embutido no Person? e
+    // personAddress e endpoint relacionado a parte?
+    try {
+      const comEndereco = amostra.find(p => p.street || p.personShipping || p.zipcode) || amostra[0];
+      achados.endereco = {
+        campos_no_person: Object.keys(comEndereco).filter(k =>
+          /address|shipping|street|zip|endereco|entrega/i.test(k)),
+        tem_personShipping: !!comEndereco.personShipping,
+        personShipping_forma: comEndereco.personShipping
+          ? Object.keys(comEndereco.personShipping) : null
+      };
+      if (comEndereco?.id) {
+        try {
+          const enderecos = await zenGet('/catalog/person/personAddress',
+            { q: `person.id==${comEndereco.id}`, max: 10, limite: 10 });
+          achados.endereco.personAddress_relacionado = {
+            encontrados: enderecos.length,
+            campos: enderecos.length ? Object.keys(enderecos[0]) : [],
+            tipos: [...new Set(enderecos.map(e => e.type || e.addressType || e.description).filter(Boolean))]
+          };
+        } catch (e) {
+          achados.endereco.personAddress_relacionado = { erro: e.message.slice(0, 150) };
+        }
+      }
+    } catch (e) {
+      achados.endereco = { erro: e.message.slice(0, 150) };
+    }
+
     console.log('[ZEN] achados:', JSON.stringify(achados, null, 2));
     return res.status(200).json({ ok: true, ...achados });
 
