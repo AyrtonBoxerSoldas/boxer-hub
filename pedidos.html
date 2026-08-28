@@ -227,8 +227,75 @@ async function renderCarrinho() {
     </div>
     <div class="cart-actions">
       <button class="btn btn-danger btn-sm" onclick="clearCart()">Limpar carrinho</button>
-      <button class="btn btn-primary" onclick="toast('Funcionalidade de envio em desenvolvimento','error')">Enviar pedido</button>
+      <button class="btn btn-primary" id="btnEnviarPedido" onclick="enviarPedido()">Enviar pedido</button>
     </div>`;
+}
+
+async function enviarPedido() {
+  const cart = getCart();
+  if (!cart.length) return;
+
+  const tipo = getUserTipo();
+  if (tipo !== 'cliente') {
+    toast('Pedido por representante ainda nao disponivel neste portal', 'error');
+    return;
+  }
+  const clienteId = getUserClienteId();
+  if (!clienteId) {
+    toast('Seu usuario nao esta vinculado a um cliente', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btnEnviarPedido');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  try {
+    // preco recalculado no servidor para cada item -- nunca confia no
+    // preco_base que veio do carrinho (sessionStorage e editavel pelo cliente)
+    const itensCalc = [];
+    for (const item of cart) {
+      const r = await sbRpc('hub_fn_calcular_preco', {
+        p_cliente_id: clienteId, p_produto_id: item.produto_id, p_quantidade: item.quantidade
+      });
+      if (!r.ok) throw new Error((item.sku || item.nome) + ': ' + (r.erro || 'erro ao calcular preco'));
+      itensCalc.push({ ...item, preco_base: r.preco_base, preco_final: r.preco_final, subtotal: r.subtotal });
+    }
+    const valorTotal = itensCalc.reduce((s, i) => s + i.subtotal, 0);
+
+    const credito = await sbRpc('hub_fn_validar_credito', { p_cliente_id: clienteId, p_valor: valorTotal });
+    if (!credito.ok) {
+      throw new Error(credito.erro === 'Limite insuficiente'
+        ? 'Limite insuficiente: disponivel ' + fmtMoeda(credito.disponivel) + ', pedido ' + fmtMoeda(valorTotal)
+        : (credito.erro || 'Credito nao aprovado'));
+    }
+
+    const [pedido] = await sb('/hub_pedidos', 'POST', { cliente_id: clienteId, status: 'rascunho' });
+
+    await sb('/hub_pedido_itens', 'POST', itensCalc.map(i => ({
+      pedido_id: pedido.id,
+      produto_id: i.produto_id,
+      sku: i.sku,
+      nome_produto: i.nome,
+      quantidade: i.quantidade,
+      preco_unitario: i.preco_base,
+      preco_final: i.preco_final,
+      subtotal_item: i.subtotal
+    })));
+
+    const resultado = await sbRpc('hub_fn_submeter_pedido', { p_pedido_id: pedido.id });
+    if (!resultado.ok) throw new Error(resultado.erro || 'Erro ao submeter pedido');
+
+    clearCart();
+    toast('Pedido ' + resultado.numero + ' enviado!');
+    showTab('lista', document.querySelectorAll('.tab')[0]);
+    loadPedidos();
+  } catch (e) {
+    toast('Erro: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Enviar pedido';
+  }
 }
 
 function stockLabel(p) {
