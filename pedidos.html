@@ -231,7 +231,21 @@ async function renderCarrinho() {
     </div>`;
 }
 
+let _enviandoPedido = false;
+
 async function enviarPedido() {
+  if (_enviandoPedido) return; // trava de reentrancia -- protege mesmo se o
+  // botao for recriado (renderCarrinho) enquanto o envio anterior ainda esta em voo
+  _enviandoPedido = true;
+
+  try {
+    await _enviarPedidoInterno();
+  } finally {
+    _enviandoPedido = false;
+  }
+}
+
+async function _enviarPedidoInterno() {
   const cart = getCart();
   if (!cart.length) return;
 
