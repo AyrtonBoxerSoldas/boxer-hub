@@ -119,63 +119,7 @@ module.exports = async function handler(req, res) {
     });
     console.log(`[SYNC] ${Object.keys(bomFotoMap).length} BOM itens com foto`);
 
-    // 3 — Sincronizar categorias
-    const catSet = new Set();
-    const subMap = {};
-    pdmProdutos.forEach(p => {
-      if (p.categoria) {
-        catSet.add(p.categoria);
-        if (p.subcategoria) {
-          if (!subMap[p.categoria]) subMap[p.categoria] = new Set();
-          subMap[p.categoria].add(p.subcategoria);
-        }
-      }
-    });
-
-    const catBodies = [...catSet].map(nome => ({ nome, slug: slugify(nome), ativo: true }));
-    let categorias = [];
-    if (catBodies.length > 0) {
-      const catRes = await fetch(HUB_URL + '/rest/v1/hub_categorias?on_conflict=slug', {
-        method: 'POST',
-        headers: { ...hubH('POST'), 'Prefer': 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify(catBodies)
-      });
-      if (!catRes.ok) throw new Error('Erro ao upsertar categorias: ' + await catRes.text());
-      categorias = await catRes.json();
-    }
-
-    const catLookup = {};
-    categorias.forEach(c => catLookup[c.nome] = c.id);
-
-    const subBodies = [];
-    Object.entries(subMap).forEach(([cat, subs]) => {
-      const paiId = catLookup[cat];
-      if (paiId) {
-        [...subs].forEach(sub => {
-          subBodies.push({
-            nome: sub,
-            slug: slugify(cat + '-' + sub),
-            categoria_pai_id: paiId,
-            ativo: true
-          });
-        });
-      }
-    });
-
-    let subcategorias = [];
-    if (subBodies.length > 0) {
-      const subRes = await fetch(HUB_URL + '/rest/v1/hub_categorias?on_conflict=slug', {
-        method: 'POST',
-        headers: { ...hubH('POST'), 'Prefer': 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify(subBodies)
-      });
-      if (!subRes.ok) throw new Error('Erro ao upsertar subcategorias: ' + await subRes.text());
-      subcategorias = await subRes.json();
-    }
-
-    subcategorias.forEach(c => catLookup[c.nome] = c.id);
-
-    // 4 — Sincronizar produtos (FILTRADO pelos com preço ativo)
+    // 3 — Sincronizar produtos (categorias vem da view via public.categorias)
     const pdmIdToSku = {};
     pdmProdutos.forEach(p => pdmIdToSku[p.id] = normSku(p.codigo));
 
@@ -190,14 +134,11 @@ module.exports = async function handler(req, res) {
       if (p.ca_validade) ft.ca_validade = p.ca_validade;
       if (p.recursos_diferenciais) ft.recursos_diferenciais = p.recursos_diferenciais;
 
-      const catId = catLookup[p.subcategoria] || catLookup[p.categoria] || null;
-
       return {
         sku: normSku(p.codigo),
         nome: p.nome,
         descricao: p.descricao_detalhada || p.descricao || null,
         ncm: p.ncm || null,
-        categoria_id: catId,
         ficha_tecnica: Object.keys(ft).length > 0 ? ft : null,
         o_que_acompanha: parseOQueAcompanha(p.recursos_diferenciais),
         erp_produto_id: p.codigo,
@@ -390,8 +331,6 @@ module.exports = async function handler(req, res) {
       produtos_vindos_do_pdm: hubProdutos.length,
       // SKUs com preco que o PDM nao cobre — teto da cobertura de fotos
       produtos_sem_origem_no_pdm: validHubIds.size - hubProdutos.filter(p => validProdutoIds.has(p.id)).length,
-      categorias: categorias.length,
-      subcategorias: subcategorias.length,
       fotos_produto: photoStats.produtoImagem,
       fotos_bom_itens: photoStats.bomItens,
       fotos_artworks: photoStats.artworks,
@@ -410,13 +349,6 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: e.message });
   }
 };
-
-function slugify(text) {
-  return text.toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
 
 function parseOQueAcompanha(recursos) {
   if (!recursos) return null;
