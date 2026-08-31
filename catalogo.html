@@ -223,26 +223,54 @@ let selectedCat = '';
 let precoContexto = null;
 
 async function loadPrecos() {
-  const clienteId = getUserClienteId();
-  if (!clienteId) return;
+  const clienteId = getClienteAtivo();
   try {
-    const linhas = await sbRpc('hub_fn_precos_cliente', {
-      p_cliente_id: clienteId, p_valor_pedido: 0
-    });
-    linhas.forEach(l => {
-      allPrecos[l.produto_id] = {
-        preco_base: l.preco_final,
-        preco_tabela: l.preco_tabela,
-        ipi_percentual: l.ipi,
-        icms_percentual: l.icms
-      };
-      if (!precoContexto) {
-        precoContexto = { classe: l.classe, segmento: l.segmento, uf: l.uf };
-      }
-    });
+    if (clienteId) {
+      const linhas = await sbRpc('hub_fn_precos_cliente', {
+        p_cliente_id: clienteId, p_valor_pedido: 0
+      });
+      linhas.forEach(l => {
+        allPrecos[l.produto_id] = {
+          preco_base: l.preco_final,
+          preco_tabela: l.preco_tabela,
+          ipi_percentual: l.ipi,
+          icms_percentual: l.icms
+        };
+        if (!precoContexto) {
+          precoContexto = { tipo: 'cliente', classe: l.classe, segmento: l.segmento, uf: l.uf };
+        }
+      });
+    } else if (getUserTipo() !== 'cliente') {
+      // Rep/funcionario sem revenda escolhida: preco de tabela, sem desconto.
+      // E referencia para consulta -- para pedir, tem que atuar por uma revenda.
+      const linhas = await sbRpc('hub_fn_precos_tabela', { p_uf: 'SP' });
+      linhas.forEach(l => {
+        allPrecos[l.produto_id] = {
+          preco_base: l.preco_tabela,
+          preco_tabela: l.preco_tabela,
+          ipi_percentual: l.ipi,
+          icms_percentual: l.icms
+        };
+        if (!precoContexto) precoContexto = { tipo: 'tabela', uf: l.uf };
+      });
+    }
   } catch (e) {
-    console.error('[preco] falha ao carregar precos do cliente:', e);
+    console.error('[preco] falha ao carregar precos:', e);
   }
+  renderAvisoPreco();
+}
+
+// Deixa explicito de qual preco se trata -- sem isso um rep pode achar que o
+// numero da tela e o que a revenda paga.
+function renderAvisoPreco() {
+  if (!precoContexto || precoContexto.tipo !== 'tabela') return;
+  const aviso = document.createElement('div');
+  aviso.style.cssText = 'max-width:1400px;margin:12px auto 0;padding:10px 14px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;font-size:13px;color:#92400e;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap';
+  aviso.innerHTML = '<span>Precos de <strong>tabela ' + precoContexto.uf +
+    '</strong>, sem desconto. Selecione uma revenda para ver o preco dela e montar pedido.</span>' +
+    '<button class="btn btn-primary btn-sm" onclick="abrirSeletorCliente()">Selecionar revenda</button>';
+  const nav = document.querySelector('.hub-nav');
+  if (nav && nav.parentNode) nav.parentNode.insertBefore(aviso, nav.nextSibling);
 }
 
 // === CATEGORIAS ===
