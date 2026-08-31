@@ -58,6 +58,11 @@ module.exports = async function handler(req, res) {
   }
 
   const dryRun = req.query?.dry === '1' || req.body?.dry === true;
+  // Amostra de teste: restringe a N clientes por canal antes de gravar --
+  // uso pontual pra validar mudancas (ex: inicializacao de credito) sem
+  // tocar a base inteira (~7700 clientes) de uma vez.
+  const limitePorCanalRaw = req.query?.limite_por_canal ?? req.body?.limite_por_canal;
+  const limitePorCanal = limitePorCanalRaw ? parseInt(limitePorCanalRaw, 10) : null;
 
   try {
     // 1 — Buscar as pessoas dos canais desejados.
@@ -94,6 +99,17 @@ module.exports = async function handler(req, res) {
     // dedupe por id (uma pessoa nao deveria repetir, mas o anti-ciclo e barato)
     const vistos = new Set();
     pessoas = pessoas.filter(p => (p?.id && !vistos.has(p.id)) ? vistos.add(p.id) : false);
+
+    const totalRealEncontrado = pessoas.length;
+    if (limitePorCanal) {
+      const porCanalAmostra = {};
+      pessoas = pessoas.filter(p => {
+        const c = canalDe(p);
+        porCanalAmostra[c] = (porCanalAmostra[c] || 0) + 1;
+        return porCanalAmostra[c] <= limitePorCanal;
+      });
+      console.log(`[ZEN] amostra de teste: limitado a ${limitePorCanal}/canal (${pessoas.length} de ${totalRealEncontrado})`);
+    }
 
     console.log(`[ZEN] ${pessoas.length} pessoas nos canais ${CANAIS.join(', ')}`);
 
@@ -133,6 +149,7 @@ module.exports = async function handler(req, res) {
     const resumo = {
       canais: CANAIS,
       encontrados_por_canal: porCanal,
+      amostra_teste: limitePorCanal ? { limite_por_canal: limitePorCanal, total_real_encontrado: totalRealEncontrado } : undefined,
       total_encontrado: pessoas.length,
       a_gravar: bodies.length,
       ignorados_sem_documento: semDoc.length,
@@ -165,8 +182,18 @@ module.exports = async function handler(req, res) {
     }
 
     console.log('[ZEN] gravados:', gravados, 'de', bodies.length);
+
+    // 4 — Inicializar limite de credito para quem nunca recebeu (clientes
+    // ativados por convite, nao por onboarding, nunca passam por api/ativar.js
+    // -- so ele grava limite_credito/limite_disponivel hoje). So toca quem
+    // esta zerado/nulo: quem ja tem limite so muda por aprovacao de aumento
+    // (hub_solicitacoes_credito), nunca por este sync, pra nao apagar credito
+    // ja reservado em pedidos submetidos (hub_fn_submeter_pedido decrementa
+    // limite_disponivel na hora, e este sync nao sabe quanto foi reservado).
+    const credito = await inicializarCreditoFaltante(bodies, hubH, dryRun);
+
     return res.status(200).json({
-      ok: erros.length === 0, ...resumo, gravados,
+      ok: erros.length === 0, ...resumo, gravados, credito,
       erros: erros.length ? erros : undefined
     });
 
@@ -175,6 +202,60 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ ok: false, erro: e.message });
   }
 };
+
+async function inicializarCreditoFaltante(bodies, hubH, dryRun) {
+  const ids = bodies.map(b => b.erp_cliente_id).filter(Boolean);
+  if (!ids.length) return { verificados: 0 };
+
+  // quem ja existe no Hub e ainda esta com limite zerado/nulo
+  const atuaisRes = await fetch(
+    HUB_URL + '/rest/v1/hub_clientes?erp_cliente_id=in.(' + ids.join(',') + ')&select=erp_cliente_id,limite_credito',
+    { headers: hubH('GET') }
+  );
+  const atuais = await atuaisRes.json();
+  const semLimite = (Array.isArray(atuais) ? atuais : [])
+    .filter(c => !c.limite_credito || +c.limite_credito === 0)
+    .map(c => c.erp_cliente_id);
+
+  if (!semLimite.length) return { verificados: atuais.length, sem_limite: 0 };
+
+  // busca o limite real no Zen em lotes (RSQL OR por person.id)
+  const porId = {};
+  for (let i = 0; i < semLimite.length; i += 25) {
+    const lote = semLimite.slice(i, i + 25);
+    const q = lote.map(id => `person.id==${id}`).join(',');
+    try {
+      const itens = await zenGet('/financial/credit/creditLineItem', { q: `(${q})`, max: 50 });
+      for (const it of itens) {
+        const pid = String(it.person?.id ?? '');
+        if (pid) porId[pid] = (porId[pid] || 0) + (+it.value || 0);
+      }
+    } catch (e) {
+      console.warn('[ZEN] falha ao buscar creditLineItem do lote', i, ':', e.message.slice(0, 120));
+    }
+  }
+
+  const encontrados = Object.keys(porId).filter(id => porId[id] > 0);
+  if (dryRun) {
+    return { verificados: atuais.length, sem_limite: semLimite.length, encontrados_no_zen: encontrados.length, dry_run: true };
+  }
+
+  let atualizados = 0;
+  for (const id of encontrados) {
+    const r = await fetch(HUB_URL + '/rest/v1/hub_clientes?erp_cliente_id=eq.' + id, {
+      method: 'PATCH', headers: hubH('PATCH'),
+      body: JSON.stringify({ limite_credito: porId[id], limite_disponivel: porId[id] })
+    });
+    if (r.ok) atualizados++;
+  }
+
+  return {
+    verificados: atuais.length,
+    sem_limite: semLimite.length,
+    encontrados_no_zen: encontrados.length,
+    atualizados
+  };
+}
 
 function canalDe(p) {
   return p?.category1?.description || p?.category1?.code || null;

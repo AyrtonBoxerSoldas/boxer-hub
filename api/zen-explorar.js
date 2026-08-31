@@ -240,6 +240,51 @@ module.exports = async function handler(req, res) {
       achados.stockClusters = 'erro: ' + e.message.slice(0, 150);
     }
 
+    // 8 — quais empresas (company) existem, e qual stockCluster/warehouse cada
+    // uma usa. Precisamos saber qual delas representa a Boxer B2B/revenda.
+    try {
+      const empresas = await zenGet('/catalog/company/company', { max: 30, limite: 30 });
+      achados.companies = empresas.map(c => ({
+        id: c.id, code: c.code,
+        nome: c.person?.fantasyName || c.person?.name,
+        stockCluster: c.stockCluster?.code ?? c.stockCluster,
+        warehouse: c.warehouse?.code ?? c.warehouse,
+        priceList: c.priceList?.code ?? c.priceList ?? null,
+        creditLine: c.creditLine?.code ?? c.creditLine ?? null
+      }));
+    } catch (e) {
+      achados.companies = 'erro: ' + e.message.slice(0, 150);
+    }
+
+    // 9 — como productPacking se relaciona com o SKU do produto (hub_produtos.sku
+    // == erp_produto_id == Product.code). Testamos com 3 SKUs reais do Hub.
+    achados.productPacking_teste = {};
+    for (const sku of ['100169', '100184', '1005023']) {
+      const item = {};
+      try {
+        const produtos = await zenGet('/catalog/product/product', { q: `code==${sku}`, max: 3, limite: 3 });
+        item.product_encontrado = produtos.length;
+        if (produtos.length) {
+          item.product_campos = Object.keys(produtos[0]).sort();
+          item.product_id = produtos[0].id;
+          for (const [rotulo, caminho] of [
+            ['catalog_product', '/catalog/product/productPacking'],
+            ['material', '/material/productPacking']
+          ]) {
+            try {
+              const packs = await zenGet(caminho, { q: `product.id==${produtos[0].id}`, max: 5, limite: 5 });
+              item[rotulo] = { existe: true, qtd: packs.length, campos: packs.length ? Object.keys(packs[0]).sort() : [], exemplo: packs[0] || null };
+            } catch (e2) {
+              item[rotulo] = { existe: false, erro: e2.message.slice(0, 120) };
+            }
+          }
+        }
+      } catch (e) {
+        item.erro = e.message.slice(0, 150);
+      }
+      achados.productPacking_teste[sku] = item;
+    }
+
     console.log('[ZEN] achados:', JSON.stringify(achados, null, 2));
     return res.status(200).json({ ok: true, ...achados });
 
