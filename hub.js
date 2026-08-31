@@ -147,17 +147,21 @@ function calcularDisponibilidadePrevista(records, deficit) {
 }
 
 // Busca a disponibilidade prevista para um sku especifico, comparando o
-// estoque FUP com a quantidade desejada no carrinho. Retorna:
-// - null: nao ha deficit (quantidade <= estoque) ou falha ao buscar dados — nao exibir nada.
+// estoque ATUAL (ZenERP/hub_produtos.estoque_disponivel — passado pelo chamador,
+// nao o campo "estoque" do FUP, que fica dessincronizado com o Zen) com a
+// quantidade desejada no carrinho. O FUP so e usado aqui para as remessas em
+// transito (qtd/prevRep/reservas), que o Zen nao tem. Retorna:
+// - null: nao ha deficit (quantidade <= estoque), estoque atual desconhecido, ou falha ao buscar dados — nao exibir nada.
 // - { iso: <string> }: deficit coberto pelas remessas em transito na data indicada.
 // - { iso: null }: ha deficit mas nem as remessas em transito o cobrem — exibir "Sem Disponibilidade Prevista".
-async function fetchDisponibilidadePrevistaSku(sku, quantidade) {
+async function fetchDisponibilidadePrevistaSku(sku, quantidade, estoqueAtual) {
   const disp = await fetchDisponibilidadeEstoque();
   if (!disp) return null;
   const records = disp.disponibilidade.porCodigo[sku];
   if (!Array.isArray(records) || !records.length) return null;
 
-  const estoque = Number(records[0].estoque) || 0;
+  const estoque = Number(estoqueAtual);
+  if (!Number.isFinite(estoque)) return null;
   const deficit = quantidade - estoque;
   if (deficit <= 0) return null;
 
