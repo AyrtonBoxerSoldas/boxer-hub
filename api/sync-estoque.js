@@ -152,7 +152,7 @@ module.exports = async function handler(req, res) {
   try {
     console.log('[SYNC ESTOQUE] Buscando produtos ativos do catalogo...');
     const produtos = await fetchAll(
-      HUB_URL + '/rest/v1/hub_produtos?ativo=eq.true&select=id,sku', hubH('GET'), 'hub_produtos'
+      HUB_URL + '/rest/v1/hub_produtos?ativo=eq.true&select=id,sku,nome', hubH('GET'), 'hub_produtos'
     );
     const skus = [...new Set(produtos.map(p => normSku(p.sku)).filter(Boolean))];
     console.log(`[SYNC ESTOQUE] ${skus.length} SKU(s) no catalogo`);
@@ -164,10 +164,11 @@ module.exports = async function handler(req, res) {
     if (!estoque) return res.status(502).json({ error: 'Falha ao consultar estoque no ZenERP' });
 
     const bodies = produtos
-      .map(p => ({ sku: normSku(p.sku), qtd: estoque.porSku[normSku(p.sku)] }))
+      .map(p => ({ sku: normSku(p.sku), nome: p.nome, qtd: estoque.porSku[normSku(p.sku)] }))
       .filter(p => p.qtd !== undefined)
       .map(p => ({
         sku: p.sku,
+        nome: p.nome, // on_conflict=sku exige NOT NULL satisfeito mesmo quando so vai fazer UPDATE
         estoque_disponivel: p.qtd,
         atualizado_em: new Date().toISOString()
       }));
