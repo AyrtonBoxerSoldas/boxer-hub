@@ -153,17 +153,20 @@ function calcularDisponibilidadePrevista(records, deficit) {
 // transito (qtd/prevRep/reservas), que o Zen nao tem. Retorna:
 // - null: nao ha deficit (quantidade <= estoque), estoque atual desconhecido, ou falha ao buscar dados — nao exibir nada.
 // - { iso: <string> }: deficit coberto pelas remessas em transito na data indicada.
-// - { iso: null }: ha deficit mas nem as remessas em transito o cobrem — exibir "Sem Disponibilidade Prevista".
+// - { iso: null }: ha deficit mas nao ha remessa que o cubra (seja porque nao ha nenhum
+//   embarque desse sku no FUP, seja porque a soma dos que existem nao e suficiente) —
+//   exibir "Sem Disponibilidade Prevista".
 async function fetchDisponibilidadePrevistaSku(sku, quantidade, estoqueAtual) {
   const disp = await fetchDisponibilidadeEstoque();
   if (!disp) return null;
-  const records = disp.disponibilidade.porCodigo[sku];
-  if (!Array.isArray(records) || !records.length) return null;
 
   const estoque = Number(estoqueAtual);
   if (!Number.isFinite(estoque)) return null;
   const deficit = quantidade - estoque;
   if (deficit <= 0) return null;
+
+  const records = disp.disponibilidade.porCodigo[sku];
+  if (!Array.isArray(records) || !records.length) return { iso: null };
 
   return { iso: calcularDisponibilidadePrevista(records, deficit) };
 }
