@@ -211,14 +211,38 @@ let selectedCat = '';
 
 // === PRECOS ===
 
+// Preco vem da base mestre via hub_fn_precos_cliente: varia por UF e canal do
+// cliente. Aqui pedimos com valor_pedido = 0, que e o "preco publicado" — a
+// faixa mais cara. Conforme o carrinho cresce, pedidos.html recalcula e o
+// preco melhora (regra da politica comercial).
+//
+// Representante e funcionario nao tem cliente_id, entao nao existe "o preco
+// deles": a vitrine fica sem preco em vez de mostrar um numero achatado que
+// nao vale para ninguem. Selecionar cliente para ver preco/pedir por ele
+// ainda precisa ser construido.
+let precoContexto = null;
+
 async function loadPrecos() {
+  const clienteId = getUserClienteId();
+  if (!clienteId) return;
   try {
-    const tabelas = await sb('/hub_tabela_precos?ativo=eq.true&select=id,nome');
-    const principal = tabelas.find(t => t.nome === 'Principal');
-    if (!principal) return;
-    const itens = await sb('/hub_tabela_preco_itens?tabela_preco_id=eq.' + principal.id + '&select=produto_id,preco_base,ipi_percentual,icms_percentual');
-    itens.forEach(i => { allPrecos[i.produto_id] = i; });
-  } catch {}
+    const linhas = await sbRpc('hub_fn_precos_cliente', {
+      p_cliente_id: clienteId, p_valor_pedido: 0
+    });
+    linhas.forEach(l => {
+      allPrecos[l.produto_id] = {
+        preco_base: l.preco_final,
+        preco_tabela: l.preco_tabela,
+        ipi_percentual: l.ipi,
+        icms_percentual: l.icms
+      };
+      if (!precoContexto) {
+        precoContexto = { classe: l.classe, segmento: l.segmento, uf: l.uf };
+      }
+    });
+  } catch (e) {
+    console.error('[preco] falha ao carregar precos do cliente:', e);
+  }
 }
 
 // === CATEGORIAS ===

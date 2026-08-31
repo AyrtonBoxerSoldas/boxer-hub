@@ -157,6 +157,35 @@ function saveCart(cart) {
 
 let stockMap = {};
 
+// Preco do carrinho vem da base mestre, na faixa correta.
+// A faixa (classe) do Varejo/Fisica depende do valor do pedido, entao e preciso
+// primeiro somar o carrinho a PRECO DE TABELA e so depois pedir os precos
+// naquela faixa — mesma ordem que o servidor usa em hub_fn_submeter_pedido.
+// Medir na tabela, e nao no preco ja descontado, evita a circularidade de o
+// desconto baixar o valor e o valor rebaixar a faixa.
+async function carregarPrecosCarrinho(cart) {
+  const clienteId = getUserClienteId();
+  if (!clienteId || !cart.length) return {};
+  try {
+    const base = await sbRpc('hub_fn_precos_cliente', { p_cliente_id: clienteId, p_valor_pedido: 0 });
+    const porId = {};
+    base.forEach(l => { porId[l.produto_id] = l; });
+
+    const subtotalTabela = cart.reduce(
+      (s, i) => s + (+(porId[i.produto_id]?.preco_tabela || 0) * i.quantidade), 0);
+
+    const finais = await sbRpc('hub_fn_precos_cliente', {
+      p_cliente_id: clienteId, p_valor_pedido: subtotalTabela
+    });
+    const out = {};
+    finais.forEach(l => { out[l.produto_id] = l; });
+    return out;
+  } catch (e) {
+    console.error('[preco] falha ao recalcular carrinho:', e);
+    return {};
+  }
+}
+
 async function renderCarrinho() {
   const wrap = document.getElementById('carrinhoWrap');
   const cart = getCart();
@@ -191,7 +220,11 @@ async function renderCarrinho() {
     }));
   } catch {}
 
-  const totalVal = cart.reduce((s, i) => s + (i.preco_base * i.quantidade), 0);
+  const precos = await carregarPrecosCarrinho(cart);
+  const precoDe = item => +(precos[item.produto_id]?.preco_final ?? item.preco_base);
+  const faixa = Object.values(precos)[0];
+
+  const totalVal = cart.reduce((s, i) => s + (precoDe(i) * i.quantidade), 0);
 
   wrap.innerHTML = `
     <div>
@@ -205,7 +238,7 @@ async function renderCarrinho() {
           <div class="cart-item-info">
             <div class="cart-item-sku">${esc(item.sku)}</div>
             <div class="cart-item-nome">${esc(item.nome || item.sku)}</div>
-            <div class="cart-item-preco">${fmtMoeda(item.preco_base)} un</div>
+            <div class="cart-item-preco">${fmtMoeda(precoDe(item))} un</div>
             ${stInfo.text ? '<div class="cart-item-stock ' + stInfo.cls + '"><span class="dot"></span>' + stInfo.text + '</div>' : ''}
             ${prevTexto ? '<div class="cart-item-stock s-prev"><span class="dot"></span>' + prevTexto + '</div>' : ''}
           </div>
@@ -213,7 +246,7 @@ async function renderCarrinho() {
             <label>Qtd</label>
             <input type="number" value="${item.quantidade}" min="1" max="999" onchange="updateCartQty(${idx}, this.value)">
           </div>
-          <div class="cart-item-subtotal">${fmtMoeda(item.preco_base * item.quantidade)}</div>
+          <div class="cart-item-subtotal">${fmtMoeda(precoDe(item) * item.quantidade)}</div>
           <button class="cart-item-remove" onclick="removeCartItem(${idx})" title="Remover">&times;</button>
         </div>`;
       }).join('')}
@@ -221,7 +254,7 @@ async function renderCarrinho() {
     <div class="cart-summary">
       <div>
         <span class="cart-total-label">${cart.length} produto${cart.length !== 1 ? 's' : ''} | ${totalQty} unidade${totalQty !== 1 ? 's' : ''}</span>
-        <span class="cart-total-nota">c/ impostos inclusos</span>
+        <span class="cart-total-nota">c/ impostos inclusos${faixa ? ' | ' + esc(faixa.segmento) + '/' + esc(faixa.uf) + ' — classe ' + faixa.classe : ''}</span>
       </div>
       <div class="cart-total-valor">${fmtMoeda(totalVal)}</div>
     </div>
@@ -265,40 +298,44 @@ async function _enviarPedidoInterno() {
   btn.textContent = 'Enviando...';
 
   try {
-    // preco recalculado no servidor para cada item -- nunca confia no
-    // preco_base que veio do carrinho (sessionStorage e editavel pelo cliente)
-    const itensCalc = [];
-    for (const item of cart) {
-      const r = await sbRpc('hub_fn_calcular_preco', {
-        p_cliente_id: clienteId, p_produto_id: item.produto_id, p_quantidade: item.quantidade
-      });
-      if (!r.ok) throw new Error((item.sku || item.nome) + ': ' + (r.erro || 'erro ao calcular preco'));
-      itensCalc.push({ ...item, preco_base: r.preco_base, preco_final: r.preco_final, subtotal: r.subtotal });
-    }
-    const valorTotal = itensCalc.reduce((s, i) => s + i.subtotal, 0);
-
-    const credito = await sbRpc('hub_fn_validar_credito', { p_cliente_id: clienteId, p_valor: valorTotal });
-    if (!credito.ok) {
-      throw new Error(credito.erro === 'Limite insuficiente'
-        ? 'Limite insuficiente: disponivel ' + fmtMoeda(credito.disponivel) + ', pedido ' + fmtMoeda(valorTotal)
-        : (credito.erro || 'Credito nao aprovado'));
-    }
+    // Os precos abaixo sao so uma estimativa para o rascunho: quem decide e
+    // hub_fn_submeter_pedido, que reprecifica tudo pela base mestre, aciona a
+    // politica comercial e reserva o credito numa transacao so. Duplicar essas
+    // contas aqui so criaria uma segunda versao da regra para divergir.
+    const precos = await carregarPrecosCarrinho(cart);
 
     const [pedido] = await sb('/hub_pedidos', 'POST', { cliente_id: clienteId, status: 'rascunho' });
 
-    await sb('/hub_pedido_itens', 'POST', itensCalc.map(i => ({
-      pedido_id: pedido.id,
-      produto_id: i.produto_id,
-      sku: i.sku,
-      nome_produto: i.nome,
-      quantidade: i.quantidade,
-      preco_unitario: i.preco_base,
-      preco_final: i.preco_final,
-      subtotal_item: i.subtotal
-    })));
+    await sb('/hub_pedido_itens', 'POST', cart.map(i => {
+      const p = precos[i.produto_id];
+      const unit = +(p?.preco_final ?? i.preco_base ?? 0);
+      return {
+        pedido_id: pedido.id,
+        produto_id: i.produto_id,
+        sku: i.sku,
+        nome_produto: i.nome,
+        quantidade: i.quantidade,
+        preco_unitario: +(p?.preco_tabela ?? unit),
+        preco_final: unit,
+        subtotal_item: +(unit * i.quantidade).toFixed(2)
+      };
+    }));
 
     const resultado = await sbRpc('hub_fn_submeter_pedido', { p_pedido_id: pedido.id });
-    if (!resultado.ok) throw new Error(resultado.erro || 'Erro ao submeter pedido');
+
+    if (!resultado.ok) {
+      const violacoes = resultado.violacoes || [];
+      if (violacoes.length) {
+        // rascunho fica salvo: o revendedor ajusta o carrinho e reenvia
+        throw new Error(violacoes.map(v => v.mensagem).join(' '));
+      }
+      throw new Error(resultado.erro || 'Erro ao submeter pedido');
+    }
+
+    const frete = resultado.politica?.frete;
+    if (frete && +frete.valor > 0) {
+      toast('Frete de ' + fmtMoeda(+frete.valor) + ' incluido no pedido');
+    }
 
     clearCart();
     toast('Pedido ' + resultado.numero + ' enviado!');
