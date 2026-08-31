@@ -164,7 +164,7 @@ let stockMap = {};
 // Medir na tabela, e nao no preco ja descontado, evita a circularidade de o
 // desconto baixar o valor e o valor rebaixar a faixa.
 async function carregarPrecosCarrinho(cart) {
-  const clienteId = getUserClienteId();
+  const clienteId = getClienteAtivo();
   if (!clienteId || !cart.length) return {};
   try {
     const base = await sbRpc('hub_fn_precos_cliente', { p_cliente_id: clienteId, p_valor_pedido: 0 });
@@ -282,14 +282,16 @@ async function _enviarPedidoInterno() {
   const cart = getCart();
   if (!cart.length) return;
 
-  const tipo = getUserTipo();
-  if (tipo !== 'cliente') {
-    toast('Pedido por representante ainda nao disponivel neste portal', 'error');
-    return;
-  }
-  const clienteId = getUserClienteId();
+  // Dealer pede para si; representante e funcionario pedem em nome da revenda
+  // que escolheram na topbar. Quem valida o direito e a RLS/hub_pode_acessar_cliente.
+  const clienteId = getClienteAtivo();
   if (!clienteId) {
-    toast('Seu usuario nao esta vinculado a um cliente', 'error');
+    if (getUserTipo() !== 'cliente') {
+      toast('Selecione a revenda antes de enviar o pedido', 'error');
+      abrirSeletorCliente();
+    } else {
+      toast('Seu usuario nao esta vinculado a um cliente', 'error');
+    }
     return;
   }
 
@@ -304,7 +306,16 @@ async function _enviarPedidoInterno() {
     // contas aqui so criaria uma segunda versao da regra para divergir.
     const precos = await carregarPrecosCarrinho(cart);
 
-    const [pedido] = await sb('/hub_pedidos', 'POST', { cliente_id: clienteId, status: 'rascunho' });
+    const tipo = getUserTipo();
+    const novoPedido = { cliente_id: clienteId, status: 'rascunho' };
+    if (tipo === 'representante') {
+      novoPedido.origem = 'proxy_representante';
+      novoPedido.representante_id = getUserRepresentanteId();
+    } else if (tipo !== 'cliente') {
+      novoPedido.origem = 'admin';
+    }
+
+    const [pedido] = await sb('/hub_pedidos', 'POST', novoPedido);
 
     await sb('/hub_pedido_itens', 'POST', cart.map(i => {
       const p = precos[i.produto_id];

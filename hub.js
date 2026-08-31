@@ -273,8 +273,106 @@ function getUserId() {
   return SESSION?.user?.id || '';
 }
 
+// O carrinho e por usuario E por revenda: um representante que troca de
+// revenda no meio do caminho nao pode levar o carrinho da anterior junto.
 function cartKey() {
-  return 'hub_cart_' + getUserId();
+  return 'hub_cart_' + getUserId() + '_' + (getClienteAtivo() || 'self');
+}
+
+// === ATUAR EM NOME DE UMA REVENDA ===
+//
+// Dealer so opera para si. Representante e funcionario escolhem uma revenda e
+// passam a ver preco e a montar pedido em nome dela — que e como a venda
+// acontece de verdade (o rep transmite o pedido do cliente).
+//
+// Nada aqui concede acesso: quem decide e a RLS e hub_pode_acessar_cliente no
+// banco (rep so enxerga a carteira dele, staff enxerga todos). Isto e so a
+// escolha de contexto na tela.
+
+function clienteAtivoKey() {
+  return 'hub_cliente_ativo_' + getUserId();
+}
+
+function getClienteAtivo() {
+  if (getUserTipo() === 'cliente') return getUserClienteId();
+  try {
+    return JSON.parse(sessionStorage.getItem(clienteAtivoKey()) || 'null')?.id || null;
+  } catch { return null; }
+}
+
+function getClienteAtivoNome() {
+  if (getUserTipo() === 'cliente') return null;
+  try {
+    return JSON.parse(sessionStorage.getItem(clienteAtivoKey()) || 'null')?.nome || null;
+  } catch { return null; }
+}
+
+function setClienteAtivo(id, nome) {
+  sessionStorage.setItem(clienteAtivoKey(), JSON.stringify({ id, nome }));
+  window.location.reload();
+}
+
+function limparClienteAtivo() {
+  sessionStorage.removeItem(clienteAtivoKey());
+  window.location.reload();
+}
+
+async function abrirSeletorCliente() {
+  openModal(`
+    <h3 style="font-size:18px;margin-bottom:6px;color:#1d327b">Atuar em nome de uma revenda</h3>
+    <p style="font-size:13px;color:#718096;margin-bottom:14px">Preco e pedido passam a seguir as regras da revenda escolhida.</p>
+    <input id="buscaCliente" placeholder="Buscar por nome ou CNPJ..." autocomplete="off"
+           style="width:100%;padding:10px 12px;border:1px solid #c3cfe2;border-radius:8px;font-family:Outfit;font-size:14px;outline:none">
+    <div id="listaClientes" style="margin-top:12px;max-height:50vh;overflow-y:auto"></div>
+    <div class="form-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0">
+      ${getClienteAtivo() ? '<button class="btn btn-outline" onclick="limparClienteAtivo()">Sair da revenda</button>' : ''}
+      <button class="btn btn-outline" onclick="closeModal()">Fechar</button>
+    </div>
+  `);
+
+  const input = document.getElementById('buscaCliente');
+  input.addEventListener('input', debounce(() => buscarClientes(input.value), 300));
+  input.focus();
+  buscarClientes('');
+}
+
+async function buscarClientes(termo) {
+  const wrap = document.getElementById('listaClientes');
+  if (!wrap) return;
+  wrap.innerHTML = '<div style="padding:16px;color:#718096;font-size:13px">Buscando...</div>';
+
+  // A RLS ja limita: representante so ve a carteira dele, staff ve todos.
+  let url = '/hub_clientes?ativo=eq.true&select=id,nome_exibicao,cnpj,uf,canal,bloqueado'
+          + '&order=nome_exibicao.asc&limit=40';
+  const t = (termo || '').trim();
+  if (t) {
+    const alvo = t.replace(/\D/g, '').length >= 6
+      ? 'cnpj.ilike.*' + t.replace(/\D/g, '') + '*'
+      : 'nome_exibicao.ilike.*' + t.replace(/[(),*]/g, '') + '*';
+    url += '&or=(' + alvo + ')';
+  }
+
+  try {
+    const linhas = await sb(url);
+    if (!linhas.length) {
+      wrap.innerHTML = '<div style="padding:16px;color:#718096;font-size:13px">Nenhuma revenda encontrada.</div>';
+      return;
+    }
+    wrap.innerHTML = linhas.map(c => {
+      const nome = (c.nome_exibicao || '').replace(/'/g, '&#39;').replace(/</g, '&lt;');
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border-bottom:1px solid #e2e8f0">
+        <div style="min-width:0">
+          <div style="font-size:13px;font-weight:600;color:#1a202c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome}</div>
+          <div style="font-size:11px;color:#718096">${fmtCnpj(c.cnpj)} ${c.uf ? '· ' + c.uf : ''} ${c.canal ? '· ' + c.canal : ''}</div>
+        </div>
+        ${c.bloqueado
+          ? '<span style="font-size:11px;color:#991b1b;background:#fee2e2;padding:3px 8px;border-radius:10px;white-space:nowrap">bloqueada</span>'
+          : `<button class="btn btn-primary btn-sm" style="white-space:nowrap" onclick="setClienteAtivo('${c.id}', '${nome}')">Atuar</button>`}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    wrap.innerHTML = '<div style="padding:16px;color:#dc2626;font-size:13px">Erro ao buscar revendas.</div>';
+  }
 }
 
 // === LOGIN UI HELPERS ===
@@ -347,6 +445,13 @@ function renderTopbar(titulo) {
         <h1>${titulo}</h1>
       </div>
       <div class="topbar-right">
+        ${tipo !== 'cliente' ? (
+          getClienteAtivo()
+            ? `<span class="atuando-chip" onclick="abrirSeletorCliente()" title="Trocar de revenda">
+                 Atuando por <strong>${(getClienteAtivoNome() || 'revenda').replace(/</g,'&lt;')}</strong>
+               </span>`
+            : `<span class="atuando-chip atuando-vazio" onclick="abrirSeletorCliente()">Selecionar revenda</span>`
+        ) : ''}
         <span class="notif-badge" id="notifBadge" style="display:none" title="Notificacoes pendentes"></span>
         <span class="user-badge" id="userBadgeDesktop"><strong id="userName"></strong></span>
         <span class="logout-btn" id="logoutDesktop" onclick="doLogout()">Sair</span>
@@ -363,6 +468,11 @@ function renderTopbar(titulo) {
       .hub-nav-link{padding:10px 16px;font-family:Outfit,sans-serif;font-size:13px;font-weight:500;color:#4a5568;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s,border-color .15s}
       .hub-nav-link:hover{color:#1d327b;border-bottom-color:#25bbee}
       .hub-nav-active{color:#1d327b;border-bottom-color:#1d327b;font-weight:600}
+      .atuando-chip{background:rgba(255,255,255,.12);border:1px solid #25bbee;color:#cfe9f7;font-size:12px;padding:5px 12px;border-radius:14px;cursor:pointer;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
+      .atuando-chip strong{color:#fff}
+      .atuando-chip:hover{background:rgba(255,255,255,.2)}
+      .atuando-vazio{border-style:dashed;border-color:rgba(255,255,255,.45);color:#93b4d4}
+      @media(max-width:768px){.atuando-chip{max-width:150px;font-size:11px;padding:4px 9px}}
       .hub-menu-btn{display:none;background:none;border:1px solid rgba(255,255,255,.3);color:#fff;font-size:20px;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:Outfit;line-height:1}
       .hub-mobile-user{display:none}
       @media(max-width:768px){
@@ -406,13 +516,31 @@ function toast(msg, tipo = 'success') {
 
 // === MODAL ===
 
+// Nem toda pagina declara o overlay no HTML (catalogo e pesquisas nao tinham),
+// e o seletor de revenda na topbar vale para todas. Criar sob demanda evita
+// repetir o mesmo bloco em cada arquivo.
+function garantirModal() {
+  if (document.getElementById('modalOverlay')) return;
+  document.body.insertAdjacentHTML('beforeend', `
+    <div id="modalOverlay" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+      <div class="modal" id="modalContent"></div>
+    </div>
+    <style>
+      .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+      .modal-overlay.show{display:flex}
+      .modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);margin:16px;font-family:Outfit,sans-serif}
+    </style>`);
+}
+
 function openModal(html) {
+  garantirModal();
   document.getElementById('modalContent').innerHTML = html;
   document.getElementById('modalOverlay').classList.add('show');
 }
 
 function closeModal() {
-  document.getElementById('modalOverlay').classList.remove('show');
+  const ov = document.getElementById('modalOverlay');
+  if (ov) ov.classList.remove('show');
 }
 
 // === MOBILE MENU ===
