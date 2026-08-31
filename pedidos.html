@@ -206,7 +206,7 @@ async function renderCarrinho() {
   if (!Object.keys(stockMap).length) {
     try {
       const ids = cart.map(c => c.produto_id).join(',');
-      const prods = await sb('/hub_v_catalogo?produto_id=in.(' + ids + ')&select=produto_id,status_estoque,backorder_disponivel');
+      const prods = await sb('/hub_v_catalogo?produto_id=in.(' + ids + ')&select=produto_id,status_estoque,backorder_disponivel,estoque_disponivel');
       prods.forEach(p => { stockMap[p.produto_id] = p; });
     } catch {}
   }
@@ -215,7 +215,8 @@ async function renderCarrinho() {
   try {
     await fetchDisponibilidadeEstoque(); // aquece o cache uma unica vez
     await Promise.all(cart.map(async item => {
-      const prev = await fetchDisponibilidadePrevistaSku(item.sku, item.quantidade);
+      const estoqueAtual = stockMap[item.produto_id]?.estoque_disponivel;
+      const prev = await fetchDisponibilidadePrevistaSku(item.sku, item.quantidade, estoqueAtual);
       if (prev) prevMap[item.sku] = prev;
     }));
   } catch {}
@@ -230,7 +231,7 @@ async function renderCarrinho() {
     <div>
       ${cart.map((item, idx) => {
         const st = stockMap[item.produto_id];
-        const stInfo = st ? stockLabel(st) : { cls: '', text: '' };
+        const stInfo = st ? stockLabel(st, item.quantidade) : { cls: '', text: '' };
         const prev = prevMap[item.sku];
         const prevTexto = prev ? (prev.iso ? 'Disponibilidade Prevista para ' + fmtData(prev.iso) : 'Sem Disponibilidade Prevista') : '';
         return `
@@ -360,7 +361,14 @@ async function _enviarPedidoInterno() {
   }
 }
 
-function stockLabel(p) {
+function stockLabel(p, quantidade) {
+  // Checagem numerica real: se a quantidade pedida excede o estoque conhecido,
+  // isso vale mais que a categoria generica calculada sem olhar a quantidade.
+  const estoque = Number(p.estoque_disponivel);
+  if (Number.isFinite(estoque) && quantidade != null && quantidade > estoque) {
+    if (p.backorder_disponivel) return { cls: 's-bo', text: 'Sob encomenda' };
+    return { cls: 's-no', text: 'Indisponivel' };
+  }
   if (p.status_estoque === 'disponivel') return { cls: 's-ok', text: 'Em estoque' };
   if (p.status_estoque === 'baixo') return { cls: 's-low', text: 'Estoque baixo' };
   if (p.backorder_disponivel) return { cls: 's-bo', text: 'Sob encomenda' };
