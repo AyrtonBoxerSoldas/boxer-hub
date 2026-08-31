@@ -155,8 +155,19 @@ function solicitarAlteracao() {
 async function enviarAlteracao() {
   const desc = document.getElementById('altDescricao').value.trim();
   if (!desc) { toast('Descreva a alteracao', 'error'); return; }
-  toast('Solicitacao enviada');
-  closeModal();
+
+  const clienteId = getUserClienteId();
+  try {
+    await sb('/hub_solicitacoes_alteracao_cadastral', 'POST', {
+      cliente_id: clienteId,
+      solicitante_id: getUserId(),
+      descricao: desc
+    });
+    toast('Solicitacao enviada');
+    closeModal();
+  } catch (e) {
+    toast('Erro ao enviar solicitacao: ' + e.message, 'error');
+  }
 }
 
 function openUploadDoc() {
@@ -185,8 +196,38 @@ async function uploadDoc() {
   const tipo = document.getElementById('docTipo').value;
   const file = document.getElementById('docArquivo').files[0];
   if (!file) { toast('Selecione um arquivo', 'error'); return; }
-  toast('Upload em desenvolvimento');
-  closeModal();
+
+  if (file.size > 8 * 1024 * 1024) {
+    toast('Arquivo muito grande (maximo 8MB)', 'error');
+    return;
+  }
+
+  const btn = document.querySelector('#modalContent .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+
+  try {
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    const res = await fetch('/api/upload-documento-cadastro', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SESSION.access_token },
+      body: JSON.stringify({ tipo, filename: file.name, content_type: file.type, base64 })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Falha no upload');
+
+    toast('Documento enviado');
+    closeModal();
+    loadCadastro();
+  } catch (e) {
+    toast('Erro ao enviar documento: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Enviar'; }
+  }
 }
 </script>
 </body>

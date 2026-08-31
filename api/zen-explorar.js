@@ -183,6 +183,63 @@ module.exports = async function handler(req, res) {
       achados.preco_credito = { erro: e.message.slice(0, 150) };
     }
 
+    // 7 — modulo sale/workflow: o que falta pra escrever o pedido no ZEN.
+    // hub_fn_submeter_pedido ja fecha o pedido no Hub; falta so criar o
+    // espelho no ZEN (docs/INTEGRACAO-ZEN-HUB.md secao 3: "Zen dono a partir
+    // da submissao"). Nada aqui grava nada — so leitura.
+    try {
+      const workflows = await zenGet('/system/workflow/workflow', { max: 30, limite: 30 });
+      achados.workflows = workflows.map(w => ({ id: w.id, code: w.code, description: w.description, status: w.status }));
+    } catch (e) {
+      achados.workflows = 'erro: ' + e.message.slice(0, 150);
+    }
+
+    try {
+      const nodes = await zenGet('/system/workflow/workflowNode', { max: 100, limite: 100 });
+      achados.workflowNodes = nodes.map(n => ({
+        id: n.id, workflow: n.workflow?.id ?? n.workflow, type: n.type,
+        code: n.code, description: n.description
+      }));
+    } catch (e) {
+      achados.workflowNodes = 'erro: ' + e.message.slice(0, 150);
+    }
+
+    try {
+      const perfis = await zenGet('/sale/saleProfile', { max: 30, limite: 30 });
+      achados.saleProfiles = perfis.map(p => ({ id: p.id, code: p.code, description: p.description, workflow: p.workflow?.id ?? p.workflow }));
+    } catch (e) {
+      achados.saleProfiles = 'erro: ' + e.message.slice(0, 150);
+    }
+
+    // amostra de um pedido real, pra ver a forma de sale.Sale e sale.SaleItem
+    // (como o item referencia o produto — productPacking, nao SKU direto)
+    try {
+      const vendas = await zenGet('/sale/sale', { order: '-id', max: 3, limite: 3 });
+      achados.sale_amostra_qtd = vendas.length;
+      if (vendas.length) {
+        const v = { ...vendas[0] };
+        achados.sale_campos = Object.keys(v).sort();
+        achados.sale_exemplo = v;
+
+        try {
+          const itens = await zenGet('/sale/saleItem', { q: `sale.id==${v.id}`, max: 10, limite: 10 });
+          achados.saleItem_campos = itens.length ? Object.keys(itens[0]).sort() : [];
+          achados.saleItem_exemplo = itens[0] || null;
+        } catch (e) {
+          achados.saleItem_exemplo = { erro: e.message.slice(0, 150) };
+        }
+      }
+    } catch (e) {
+      achados.sale_amostra = 'erro: ' + e.message.slice(0, 150);
+    }
+
+    try {
+      const clusters = await zenGet('/material/stockCluster', { max: 50, limite: 50 });
+      achados.stockClusters = clusters.map(c => ({ id: c.id, code: c.code, description: c.description }));
+    } catch (e) {
+      achados.stockClusters = 'erro: ' + e.message.slice(0, 150);
+    }
+
     console.log('[ZEN] achados:', JSON.stringify(achados, null, 2));
     return res.status(200).json({ ok: true, ...achados });
 
