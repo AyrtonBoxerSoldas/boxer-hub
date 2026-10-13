@@ -32,54 +32,73 @@ async function loginZenerp(email, senha) {
   return (await authRes.text()).trim().replace(/"/g, '');
 }
 
-// Busca o ESTOQUE_ATUAL no ZenERP para cada codigo informado, via stockAvailabilityCube
-// (usa quantity_balance; valores negativos sao zerados antes de ir pro banco).
+// Chamada de relatorio (dataSourceOpRead) do ZenERP.
+function lerCuboZenerp(label, zenToken, code, parameters) {
+  return chamarApiJson(label, ZEN_BASE + '/system/data/dataSourceOpRead', {
+    method: 'POST',
+    headers: {
+      'Tenant': 'boxer',
+      'Authorization': 'Bearer ' + zenToken,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ code, parameters })
+  });
+}
+
+// Busca o ESTOQUE_ATUAL no ZenERP para cada codigo informado (ver docs/ESTOQUE_ATUAL_ZENERP.md):
+//   ESTOQUE_ATUAL = max(0, soma(quantity em MAQUINAS/PECAS) - soma(quantity_outgoing))
+// - stockCube: estoque fisico por endereco, so enderecos com address_tags MAQUINAS ou PECAS.
+// - stockAvailabilityCube: quantity_outgoing (negativo = saida ja comprometida). A existencia
+//   do SKU e decidida por esta resposta: sem linha nela, o SKU e "nao encontrado" (estoque 0).
+// Qualquer falha numa das duas chamadas retorna null (o chamador nao grava nada).
 async function fetchEstoqueZenerp(zenToken, codigos) {
-  const jsonBodyEstoque = {
-    code: "/salesbreath/stockAvailabilityCube",
-    parameters: {
-      SHOW_PRODUCT: true,
-      SHOW_PRODUCT_PACKING: true,
-      SHOW_SCHEDULE: true
-    }
-  };
+  const resFisico = await lerCuboZenerp('Estoque Fisico', zenToken, '/material/report/stockCube', {
+    SHOW_PRODUCT: true,
+    SHOW_PRODUCT_PACKING: true,
+    SHOW_ADDRESS: true
+  });
+  if (!resFisico.ok) return null;
 
-  const resultadoEstoque = await chamarApiJson(
-    'Relatorio Estoque',
-    ZEN_BASE + '/system/data/dataSourceOpRead',
-    {
-      method: 'POST',
-      headers: {
-        'Tenant': 'boxer',
-        'Authorization': 'Bearer ' + zenToken,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(jsonBodyEstoque)
-    }
-  );
+  const resDisp = await lerCuboZenerp('Disponibilidade Estoque', zenToken, '/salesbreath/stockAvailabilityCube', {
+    SHOW_PRODUCT: true,
+    SHOW_PRODUCT_PACKING: true,
+    SHOW_SCHEDULE: true
+  });
+  if (!resDisp.ok) return null;
 
-  if (!resultadoEstoque.ok) return null;
-
-  const json = resultadoEstoque.data;
-  if (!Array.isArray(json)) {
-    console.error('[Estoque] Resposta da API nao veio como lista (formato inesperado):', json);
+  if (!Array.isArray(resFisico.data) || !Array.isArray(resDisp.data)) {
+    console.error('[Estoque] Resposta da API nao veio como lista (formato inesperado).');
     return null;
   }
-  console.log(`[Estoque] API ZenERP retornou ${json.length} linha(s).`);
+
+  const ENDERECOS_ESTOQUE = ['MAQUINAS', 'PECAS'];
+  const fisico = resFisico.data.filter(row => ENDERECOS_ESTOQUE.includes(row.address_tags));
+  const disp = resDisp.data;
+  console.log(`[Estoque] stockCube: ${resFisico.data.length} linha(s), ${fisico.length} em MAQUINAS/PECAS; stockAvailabilityCube: ${disp.length} linha(s).`);
+
+  // Agrupa uma vez por SKU (um produto pode ter varias linhas em ambos os cubos).
+  const somaPorSku = (linhas, campo) => {
+    const m = new Map();
+    linhas.forEach(row => {
+      const k = normSku(row.product_code);
+      m.set(k, (m.get(k) || 0) + (Number(row[campo]) || 0));
+    });
+    return m;
+  };
+  const somaFisico = somaPorSku(fisico, 'quantity');
+  const somaSaida = somaPorSku(disp, 'quantity_outgoing');
 
   let matched = 0;
   const naoEncontrados = [];
   const porSku = {};
   codigos.forEach(codigo => {
-    const linhas = json.filter(row => normSku(row.product_code) === codigo);
-    if (!linhas.length) {
+    if (!somaSaida.has(codigo)) {
       naoEncontrados.push(codigo);
       porSku[codigo] = 0;
       return;
     }
     matched++;
-    const soma = linhas.reduce((s, row) => s + (Number(row.quantity_balance) || 0), 0);
-    porSku[codigo] = Math.max(soma, 0);
+    porSku[codigo] = Math.max((somaFisico.get(codigo) || 0) - somaSaida.get(codigo), 0);
   });
 
   console.log(`[Estoque] ${matched}/${codigos.length} codigo(s) encontrados na resposta do ZenERP.`);
