@@ -130,6 +130,18 @@ function buildEmail(tipo, d) {
         `
       };
 
+    case 'acesso_liberado':
+      return {
+        to: d.email,
+        from: 'Boxer Tabela de Preços <noreply@boxersoldas.com.br>',
+        subject: 'Seu acesso à Tabela de Preços Boxer foi liberado',
+        body: `
+          <p>Olá${d.nome ? ', <strong>' + d.nome + '</strong>' : ''}! Seu acesso à <strong>Tabela de Preços Boxer</strong> foi liberado${d.validade ? ' até <strong>' + d.validade + '</strong>' : ''}.</p>
+          <p style="font-size:13px;color:#4a5568">Para entrar, informe este email na tela de acesso e digite o código que enviaremos para você. Não há senha para lembrar.</p>
+          ${btnLink(d.link || 'https://app.boxersoldas.com.br/tabela-teste.html', 'Acessar a tabela')}
+        `
+      };
+
     case 'senha_alterada':
       return {
         to: d.email,
