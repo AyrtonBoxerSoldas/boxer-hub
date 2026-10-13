@@ -25,6 +25,34 @@ async function fupSelect(token, table, select) {
   return rows[0] || null;
 }
 
+// Mesma regra do hub.js (calcularDisponibilidadePrevista): anda pelas remessas por data prevista,
+// desconta a fila de reservas e devolve a data em que o deficit passa a estar coberto.
+function calcularPrevisao(records, deficit) {
+  if (!Array.isArray(records) || !records.length || !(deficit > 0)) return null;
+  const toDate = v => { const d = v ? new Date(v) : null; return d && !isNaN(d) ? d : null; };
+  const ordenados = [...records].sort((a, b) => {
+    const da = toDate(a.prevRep), db = toDate(b.prevRep);
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da - db;
+  });
+  let reservasRestantes = Number(ordenados[0].reservas) || 0;
+  let acumulado = 0;
+  for (const rec of ordenados) {
+    const qty = Number(rec.qtd) || 0;
+    if (reservasRestantes > 0) {
+      if (qty <= reservasRestantes) { reservasRestantes -= qty; continue; }
+      acumulado += (qty - reservasRestantes);
+      reservasRestantes = 0;
+    } else {
+      acumulado += qty;
+    }
+    if (acumulado >= deficit) return rec.prevRep || null;
+  }
+  return null;
+}
+
 let _tabelaCache = null;
 const TABELA_CACHE_MS = 5 * 60 * 1000;
 
@@ -67,6 +95,13 @@ async function previsaoTabela(req, res) {
     return res.status(403).json({ error: 'Acesso restrito a equipe interna' });
   }
 
+  const itens = String(req.query.itens || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 80).map(s => {
+    const [c, q] = s.split(':');
+    return { codigo: String(c || '').trim().toUpperCase(), qtd: parseInt(q, 10) };
+  }).filter(i => /^[A-Z0-9_-]{1,20}$/.test(i.codigo) && i.qtd > 0 && i.qtd <= 100000);
+  if (!itens.length) return res.status(400).json({ error: 'itens invalidos (use codigo:qtd,codigo:qtd)' });
+  const codigos = [...new Set(itens.map(i => i.codigo))];
+
   try {
     if (!_tabelaCache || Date.now() - _tabelaCache.em > TABELA_CACHE_MS) {
       const fupToken = await loginFup(fupEmail, fupSenha);
@@ -83,8 +118,30 @@ async function previsaoTabela(req, res) {
       });
       _tabelaCache = { em: Date.now(), porCodigo, lastUpdate: dashboard?.last_update || null };
     }
+    // O estoque nunca sai daqui: o navegador manda "codigo:qtd" e recebe so o veredito
+    // (ok / previsao com data / sem previsao). Nenhum numero de saldo ou de remessa trafega.
+    const [hubRows, zenRows] = await Promise.all([
+      fetch(HUB_URL + '/rest/v1/hub_produtos?select=sku,estoque_disponivel&ativo=eq.true&sku=in.(' + codigos.map(c => '"' + c + '"').join(',') + ')', { headers: svc('comercial') }).then(r => r.ok ? r.json() : []),
+      fetch(HUB_URL + '/rest/v1/estoque_zenerp?select=codigo,quantity_balance&codigo=in.(' + codigos.map(c => '"' + c + '"').join(',') + ')', { headers: svc() }).then(r => r.ok ? r.json() : [])
+    ]);
+    const estoque = {};
+    (Array.isArray(zenRows) ? zenRows : []).forEach(z => { estoque[String(z.codigo).trim().toUpperCase()] = Math.max(Number(z.quantity_balance) || 0, 0); });
+    (Array.isArray(hubRows) ? hubRows : []).forEach(h => { if (h.estoque_disponivel != null) estoque[String(h.sku).trim().toUpperCase()] = Number(h.estoque_disponivel) || 0; });
+
+    const resultados = {};
+    itens.forEach(({ codigo, qtd }) => {
+      const q = estoque[codigo];
+      let r;
+      if (q === undefined) r = { tipo: 'sem_info' };
+      else if (q >= qtd) r = { tipo: 'ok' };
+      else {
+        const iso = calcularPrevisao(_tabelaCache.porCodigo[codigo], qtd - q);
+        r = iso ? { tipo: 'prev', iso } : { tipo: 'sem_prev' };
+      }
+      resultados[codigo + '|' + qtd] = r;
+    });
     res.setHeader('Cache-Control', 'private, max-age=60');
-    return res.status(200).json({ ok: true, porCodigo: _tabelaCache.porCodigo, lastUpdate: _tabelaCache.lastUpdate });
+    return res.status(200).json({ ok: true, resultados });
   } catch (e) {
     console.error('Erro previsao tabela (FUP):', e);
     return res.status(502).json({ error: e.message });
