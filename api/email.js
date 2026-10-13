@@ -3,6 +3,14 @@ const FROM_DEFAULT = 'Boxer Hub <noreply@boxersoldas.com.br>';
 const HUB_URL = 'https://hub.boxersoldas.com.br';
 
 module.exports = async function handler(req, res) {
+  // CORS: essa funcao passou a ser chamada tambem de fora do Hub
+  // (app.boxersoldas.com.br — propostas/admin da tabela de precos), pra
+  // avisar por email quando uma senha e alterada. Chamadas same-origin
+  // (onboarding/admin do proprio Hub) nao sao afetadas por isso.
+  res.setHeader('Access-Control-Allow-Origin', 'https://app.boxersoldas.com.br');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const RESEND_KEY = process.env.RESEND_API_KEY;
@@ -25,7 +33,7 @@ module.exports = async function handler(req, res) {
         'Authorization': 'Bearer ' + RESEND_KEY
       },
       body: JSON.stringify({
-        from: FROM_DEFAULT,
+        from: email.from || FROM_DEFAULT,
         to: Array.isArray(email.to) ? email.to : [email.to],
         subject: email.subject,
         html: wrapHtml(email.subject, email.body)
@@ -119,6 +127,32 @@ function buildEmail(tipo, d) {
           ])}
           <p><strong>Recomendamos trocar a senha no primeiro acesso.</strong></p>
           ${btnLink(HUB_URL, 'Acessar o Boxer Hub')}
+        `
+      };
+
+    case 'acesso_liberado':
+      return {
+        to: d.email,
+        from: 'Boxer Tabela de Preços <noreply@boxersoldas.com.br>',
+        subject: 'Seu acesso à Tabela de Preços Boxer foi liberado',
+        body: `
+          <p>Olá${d.nome ? ', <strong>' + d.nome + '</strong>' : ''}! Seu acesso à <strong>Tabela de Preços Boxer</strong> foi liberado${d.validade ? ' até <strong>' + d.validade + '</strong>' : ''}.</p>
+          <p style="font-size:13px;color:#4a5568">Para entrar, informe este email na tela de acesso e digite o código que enviaremos para você. Não há senha para lembrar.</p>
+          ${btnLink(d.link || 'https://app.boxersoldas.com.br/tabela-teste.html', 'Acessar a tabela')}
+        `
+      };
+
+    case 'senha_alterada':
+      return {
+        to: d.email,
+        from: 'Boxer ' + (d.sistema || 'Hub') + ' <noreply@boxersoldas.com.br>',
+        subject: 'Sua senha Boxer foi alterada',
+        body: `
+          <p>A senha da sua conta <strong>${d.email}</strong> foi alterada${d.sistema ? ' via ' + d.sistema : ''}${d.hora ? ' em ' + d.hora : ''}.</p>
+          <p style="font-size:13px;color:#718096">Essa senha e a mesma usada em todos os sistemas Boxer que compartilham este login (Hub, admin da tabela de precos, propostas).</p>
+          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:16px 0">
+            <p style="font-size:13px;color:#991b1b;margin:0"><strong>Nao foi voce?</strong> Entre em contato com o administrador imediatamente.</p>
+          </div>
         `
       };
 

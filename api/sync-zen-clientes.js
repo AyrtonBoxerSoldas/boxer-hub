@@ -63,6 +63,53 @@ module.exports = async function handler(req, res) {
   }
 
   const dryRun = req.query?.dry === '1' || req.body?.dry === true;
+
+  // === Diagnosticos ===
+  const dumpId = req.query?.dump_person_id ?? req.body?.dump_person_id;
+  const dumpCats = req.query?.dump_person_categories ?? req.body?.dump_person_categories;
+  const dumpCredit = req.query?.dump_credit_lines ?? req.body?.dump_credit_lines;
+  if (dumpId || dumpCats || dumpCredit) {
+    try {
+      const zenH = await require('./_zen').zenAuth();
+      const out = {};
+      if (dumpId) {
+        const r = await fetch('https://api.zenerp.app.br/catalog/person/person/' + dumpId, { headers: zenH });
+        out.person = { ok: r.ok, http: r.status, raw: r.ok ? await r.json() : await r.text() };
+      }
+      if (dumpCats) {
+        // Endpoint /catalog/person/personCategory nao existe (404). Provar
+        // variacoes ate achar o certo. Interplasma tem category1.id=1098
+        // (Varejo, PERSON1) e a categoria-pai tem id=1006 (Segmento).
+        const tentativas = [
+          '/catalog/person/personCategoryItem',
+          '/catalog/person/personCategoryValue',
+          '/catalog/person/category',
+          '/catalog/person/categoryItem',
+          '/catalog/category/personCategory',
+          '/catalog/category/category',
+          '/catalog/category/categoryItem',
+          '/catalog/person/personCategory/1098',
+          '/catalog/person/1098/category1'
+        ];
+        const resultados = [];
+        for (const path of tentativas) {
+          try {
+            const r = await fetch('https://api.zenerp.app.br' + path + (path.includes('?') ? '&' : '?') + 'first=0&max=5', { headers: zenH });
+            resultados.push({ path, http: r.status, ok: r.ok, sample: r.ok ? (await r.json()) : null });
+          } catch (e) { resultados.push({ path, erro: e.message }); }
+        }
+        out.person_categories_probe = resultados;
+      }
+      if (dumpCredit) {
+        const r = await fetch('https://api.zenerp.app.br/financial/credit/creditLine?first=0&max=50', { headers: zenH });
+        const raw = r.ok ? await r.json() : await r.text();
+        out.credit_lines = { ok: r.ok, http: r.status, raw };
+      }
+      return res.status(200).json({ ok: true, ...out });
+    } catch (e) {
+      return res.status(500).json({ ok: false, erro: e.message });
+    }
+  }
   // Amostra de teste: restringe a N clientes por canal antes de gravar --
   // uso pontual pra validar mudancas (ex: inicializacao de credito) sem
   // tocar a base inteira (~7700 clientes) de uma vez.
