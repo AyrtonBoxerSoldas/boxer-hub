@@ -141,7 +141,7 @@ async function previsaoTabela(req, res) {
       resultados[codigo + '|' + qtd] = r;
     });
     res.setHeader('Cache-Control', 'private, max-age=60');
-    return res.status(200).json({ ok: true, resultados });
+    return res.status(200).json({ ok: true, resultados, consultado_em: new Date().toISOString(), fup_em: _tabelaCache.lastUpdate });
   } catch (e) {
     console.error('Erro previsao tabela (FUP):', e);
     return res.status(502).json({ error: e.message });
