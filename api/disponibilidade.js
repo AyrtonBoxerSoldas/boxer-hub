@@ -148,7 +148,132 @@ async function previsaoTabela(req, res) {
   }
 }
 
+// Modo ?target=acesso (POST): login por codigo de email + solicitacao de acesso, para a tela da tabela de precos.
+// Nunca revela se um email esta liberado ou nao: a resposta e sempre a mesma.
+const ACESSO_ORIGEM = 'https://app.boxersoldas.com.br';
+const RE_EMAIL = /^[a-z0-9._%+'-]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,}$/;
+const RE_BOXER = /^[a-z0-9._%+-]{1,64}@boxersoldas\.com\.br$/;
+
+function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+async function resendEnviar(to, subject, html) {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) { console.warn('RESEND_API_KEY nao configurada — email nao enviado'); return false; }
+  const r = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({ from: 'Boxer Tabela de Preços <noreply@boxersoldas.com.br>', to: Array.isArray(to) ? to : [to], subject, html })
+  });
+  if (!r.ok) console.error('Resend erro:', await r.text());
+  return r.ok;
+}
+
+function emailShell(inner) {
+  return '<div style="font-family:Arial,sans-serif;background:#f0f4f8;padding:24px"><div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #d0d8e8;border-radius:12px;padding:28px">' + inner +
+    '</div><p style="text-align:center;font-size:11px;color:#a0aec0;margin-top:14px">Boxer Soldas — mensagem automática</p></div>';
+}
+
+async function acessoTabela(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', ACESSO_ORIGEM);
+  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Vary', 'Origin');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const SB_SERVICE = process.env.SUPABASE_SERVICE_KEY;
+  if (!SB_SERVICE) return res.status(500).json({ error: 'servico indisponivel' });
+  const H = { 'apikey': SB_SERVICE, 'Authorization': 'Bearer ' + SB_SERVICE, 'Content-Type': 'application/json' };
+  const body = (typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body); } catch (e) { return {}; } })() : req.body) || {};
+  const acao = body.acao;
+  const email = String(body.email || '').trim().toLowerCase();
+  const generico = { ok: true };
+
+  const logEvento = (evento, em, detalhe) => fetch(HUB_URL + '/rest/v1/tabela_acessos_log', {
+    method: 'POST', headers: { ...H, 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ user_id: null, email: em || null, evento, detalhe: detalhe || null })
+  }).catch(() => {});
+  const contar = async (path) => {
+    const r = await fetch(HUB_URL + '/rest/v1/' + path, { headers: { ...H, 'Prefer': 'count=exact', 'Range': '0-0' } });
+    const cr = r.headers.get('content-range') || '';
+    return parseInt(cr.split('/')[1], 10) || 0;
+  };
+
+  if (!RE_EMAIL.test(email)) return res.status(400).json({ error: 'email invalido' });
+
+  try {
+    if (acao === 'codigo') {
+      const desde = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const enviados = await contar('tabela_acessos_log?select=id&email=eq.' + encodeURIComponent(email) + '&evento=eq.codigo_enviado&criado_em=gte.' + encodeURIComponent(desde));
+      if (enviados >= 5) { await logEvento('codigo_limite', email); return res.status(200).json(generico); }
+
+      let liberado = await fetch(HUB_URL + '/rest/v1/rpc/tabela_email_liberado', { method: 'POST', headers: H, body: JSON.stringify({ p_email: email }) }).then(r => r.json());
+      if (liberado !== true && RE_BOXER.test(email)) {
+        const ins = await fetch(HUB_URL + '/rest/v1/tabela_usuarios', {
+          method: 'POST', headers: { ...H, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ email, tipo: 'interno', origem: 'dominio', criado_por: 'automatico (dominio Boxer)' })
+        });
+        if (ins.ok || ins.status === 409) { liberado = true; await logEvento('acesso_auto_dominio', email); }
+      }
+      if (liberado !== true) { await logEvento('codigo_negado', email); return res.status(200).json(generico); }
+
+      // garante o usuario no Auth (ignora "ja existe") e gera o codigo sem o Supabase mandar email
+      await fetch(HUB_URL + '/auth/v1/admin/users', { method: 'POST', headers: H, body: JSON.stringify({ email, email_confirm: true }) }).catch(() => {});
+      const lk = await fetch(HUB_URL + '/auth/v1/admin/generate_link', { method: 'POST', headers: H, body: JSON.stringify({ type: 'magiclink', email }) });
+      const lkj = await lk.json();
+      const codigo = lkj && lkj.email_otp;
+      if (!lk.ok || !codigo) { console.error('generate_link falhou', lk.status, JSON.stringify(lkj).slice(0, 200)); await logEvento('codigo_erro', email); return res.status(200).json(generico); }
+
+      const ok = await resendEnviar(email, 'Seu código de acesso — Tabela de Preços Boxer',
+        emailShell('<p style="font-size:15px;color:#1a202c;margin:0 0 14px">Seu código de acesso à <strong>Tabela de Preços Boxer</strong>:</p>' +
+          '<p style="text-align:center;margin:18px 0"><span style="display:inline-block;font-size:32px;letter-spacing:8px;font-weight:700;color:#1d327b;background:#f0f4f8;border:1px solid #d0d8e8;border-radius:10px;padding:12px 22px">' + escHtml(codigo) + '</span></p>' +
+          '<p style="font-size:13px;color:#4a5568;margin:0 0 8px">Digite esse código na tela de acesso. Ele vale por pouco tempo e só pode ser usado uma vez.</p>' +
+          '<p style="font-size:12px;color:#718096;margin:0">Não foi você? Ignore este email — ninguém entra sem o código.</p>'));
+      await logEvento(ok ? 'codigo_enviado' : 'codigo_erro', email);
+      return res.status(200).json(generico);
+    }
+
+    if (acao === 'solicitar') {
+      if (body.website) return res.status(200).json(generico); // honeypot
+      const nome = String(body.nome || '').trim().slice(0, 120);
+      const empresa = String(body.empresa || '').trim().slice(0, 160);
+      const mensagem = String(body.mensagem || '').trim().slice(0, 600);
+      if (nome.length < 2) return res.status(400).json({ error: 'informe o nome' });
+
+      const dia = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const recentes = await contar('tabela_solicitacoes?select=id&email=eq.' + encodeURIComponent(email) + '&criado_em=gte.' + encodeURIComponent(dia));
+      if (recentes >= 3) return res.status(200).json(generico);
+      const pend = await contar('tabela_solicitacoes?select=id&email=eq.' + encodeURIComponent(email) + '&status=eq.pendente');
+      if (pend > 0) return res.status(200).json(generico);
+
+      const ins = await fetch(HUB_URL + '/rest/v1/tabela_solicitacoes', {
+        method: 'POST', headers: { ...H, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ nome, email, empresa: empresa || null, mensagem: mensagem || null })
+      });
+      if (!ins.ok) { console.error('insert solicitacao falhou', await ins.text()); return res.status(200).json(generico); }
+      await logEvento('solicitacao_acesso', email, { nome, empresa });
+
+      const admins = await fetch(HUB_URL + '/rest/v1/rpc/tabela_emails_admin', { method: 'POST', headers: H, body: '{}' }).then(r => r.json()).catch(() => []);
+      if (Array.isArray(admins) && admins.length) {
+        await resendEnviar(admins, 'Nova solicitação de acesso — Tabela de Preços',
+          emailShell('<p style="font-size:15px;color:#1a202c;margin:0 0 12px"><strong>' + escHtml(nome) + '</strong> pediu acesso à Tabela de Preços Boxer.</p>' +
+            '<table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:14px"><tr><td style="color:#718096;padding:4px 0">Email</td><td>' + escHtml(email) + '</td></tr>' +
+            '<tr><td style="color:#718096;padding:4px 0">Empresa</td><td>' + escHtml(empresa || '—') + '</td></tr>' +
+            '<tr><td style="color:#718096;padding:4px 0;vertical-align:top">Mensagem</td><td>' + escHtml(mensagem || '—') + '</td></tr></table>' +
+            '<p style="text-align:center;margin:18px 0"><a href="https://app.boxersoldas.com.br/admin_supabase.html" style="background:#1d327b;color:#fff;text-decoration:none;padding:11px 24px;border-radius:8px;font-size:14px;font-weight:600">Abrir painel admin → aba Acessos</a></p>'));
+      }
+      return res.status(200).json(generico);
+    }
+
+    return res.status(400).json({ error: 'acao invalida' });
+  } catch (e) {
+    console.error('Erro acesso tabela:', e);
+    return res.status(200).json(generico);
+  }
+}
+
 module.exports = async function handler(req, res) {
+  if (req.query && req.query.target === 'acesso') return acessoTabela(req, res);
   if (req.query && req.query.target === 'tabela') return previsaoTabela(req, res);
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
