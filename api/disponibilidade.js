@@ -149,7 +149,8 @@ async function previsaoTabela(req, res) {
 }
 
 // Modo ?target=acesso (POST): login por codigo de email + solicitacao de acesso, para a tela da tabela de precos.
-// Nunca revela se um email esta liberado ou nao: a resposta e sempre a mesma.
+// Responde o status do email (enviado / nao_cadastrado / pendente / expirado / revogado) para a pessoa nao ficar esperando
+// um codigo que nunca chega. Para limitar enumeracao: limite de tentativas por IP e por email.
 const ACESSO_ORIGEM = 'https://app.boxersoldas.com.br';
 const RE_EMAIL = /^[a-z0-9._%+'-]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,}$/;
 const RE_BOXER = /^[a-z0-9._%+-]{1,64}@boxersoldas\.com\.br$/;
@@ -187,7 +188,9 @@ async function acessoTabela(req, res) {
   const body = (typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body); } catch (e) { return {}; } })() : req.body) || {};
   const acao = body.acao;
   const email = String(body.email || '').trim().toLowerCase();
-  const generico = { ok: true };
+  const generico = { ok: true, status: 'enviado' };
+  const ip = String((req.headers['x-forwarded-for'] || '')).split(',')[0].trim().slice(0, 45) || 'desconhecido';
+  const respostaStatus = (status) => res.status(200).json({ ok: true, status });
 
   const logEvento = (evento, em, detalhe) => fetch(HUB_URL + '/rest/v1/tabela_acessos_log', {
     method: 'POST', headers: { ...H, 'Prefer': 'return=minimal' },
@@ -205,7 +208,9 @@ async function acessoTabela(req, res) {
     if (acao === 'codigo') {
       const desde = new Date(Date.now() - 15 * 60 * 1000).toISOString();
       const enviados = await contar('tabela_acessos_log?select=id&email=eq.' + encodeURIComponent(email) + '&evento=eq.codigo_enviado&criado_em=gte.' + encodeURIComponent(desde));
-      if (enviados >= 5) { await logEvento('codigo_limite', email); return res.status(200).json(generico); }
+      if (enviados >= 5) { await logEvento('codigo_limite', email, { ip }); return respostaStatus('limite'); }
+      const tentativasIp = await contar('tabela_acessos_log?select=id&evento=in.(codigo_enviado,codigo_negado)&detalhe-%3E%3Eip=eq.' + encodeURIComponent(ip) + '&criado_em=gte.' + encodeURIComponent(new Date(Date.now() - 10 * 60 * 1000).toISOString()));
+      if (tentativasIp >= 20) { await logEvento('codigo_limite', email, { ip, motivo: 'ip' }); return respostaStatus('limite'); }
 
       let liberado = await fetch(HUB_URL + '/rest/v1/rpc/tabela_email_liberado', { method: 'POST', headers: H, body: JSON.stringify({ p_email: email }) }).then(r => r.json());
       if (liberado !== true && RE_BOXER.test(email)) {
@@ -215,36 +220,45 @@ async function acessoTabela(req, res) {
         });
         if (ins.ok || ins.status === 409) { liberado = true; await logEvento('acesso_auto_dominio', email); }
       }
-      if (liberado !== true) { await logEvento('codigo_negado', email); return res.status(200).json(generico); }
+      if (liberado !== true) {
+        let motivo = 'nao_cadastrado';
+        const u = await fetch(HUB_URL + '/rest/v1/tabela_usuarios?select=ativo,validade&email=eq.' + encodeURIComponent(email) + '&limit=1', { headers: H }).then(r => r.json()).catch(() => []);
+        if (Array.isArray(u) && u[0]) motivo = !u[0].ativo ? 'revogado' : 'expirado';
+        else if (await contar('tabela_solicitacoes?select=id&email=eq.' + encodeURIComponent(email) + '&status=eq.pendente') > 0) motivo = 'pendente';
+        await logEvento('codigo_negado', email, { ip, motivo });
+        return respostaStatus(motivo);
+      }
 
       // garante o usuario no Auth (ignora "ja existe") e gera o codigo sem o Supabase mandar email
       await fetch(HUB_URL + '/auth/v1/admin/users', { method: 'POST', headers: H, body: JSON.stringify({ email, email_confirm: true }) }).catch(() => {});
       const lk = await fetch(HUB_URL + '/auth/v1/admin/generate_link', { method: 'POST', headers: H, body: JSON.stringify({ type: 'magiclink', email }) });
       const lkj = await lk.json();
       const codigo = lkj && lkj.email_otp;
-      if (!lk.ok || !codigo) { console.error('generate_link falhou', lk.status, JSON.stringify(lkj).slice(0, 200)); await logEvento('codigo_erro', email); return res.status(200).json(generico); }
+      if (!lk.ok || !codigo) { console.error('generate_link falhou', lk.status, JSON.stringify(lkj).slice(0, 200)); await logEvento('codigo_erro', email, { ip }); return respostaStatus('erro'); }
 
       const ok = await resendEnviar(email, 'Seu código de acesso — Tabela de Preços Boxer',
         emailShell('<p style="font-size:15px;color:#1a202c;margin:0 0 14px">Seu código de acesso à <strong>Tabela de Preços Boxer</strong>:</p>' +
           '<p style="text-align:center;margin:18px 0"><span style="display:inline-block;font-size:32px;letter-spacing:8px;font-weight:700;color:#1d327b;background:#f0f4f8;border:1px solid #d0d8e8;border-radius:10px;padding:12px 22px">' + escHtml(codigo) + '</span></p>' +
           '<p style="font-size:13px;color:#4a5568;margin:0 0 8px">Digite esse código na tela de acesso. Ele vale por pouco tempo e só pode ser usado uma vez.</p>' +
           '<p style="font-size:12px;color:#718096;margin:0">Não foi você? Ignore este email — ninguém entra sem o código.</p>'));
-      await logEvento(ok ? 'codigo_enviado' : 'codigo_erro', email);
-      return res.status(200).json(generico);
+      await logEvento(ok ? 'codigo_enviado' : 'codigo_erro', email, { ip });
+      return ok ? res.status(200).json(generico) : respostaStatus('erro');
     }
 
     if (acao === 'solicitar') {
-      if (body.website) return res.status(200).json(generico); // honeypot
+      if (body.website) return respostaStatus('solicitado'); // honeypot
       const nome = String(body.nome || '').trim().slice(0, 120);
       const empresa = String(body.empresa || '').trim().slice(0, 160);
       const mensagem = String(body.mensagem || '').trim().slice(0, 600);
       if (nome.length < 2) return res.status(400).json({ error: 'informe o nome' });
 
+      const jaLiberado = await fetch(HUB_URL + '/rest/v1/rpc/tabela_email_liberado', { method: 'POST', headers: H, body: JSON.stringify({ p_email: email }) }).then(r => r.json()).catch(() => false);
+      if (jaLiberado === true || RE_BOXER.test(email)) return respostaStatus('ja_liberado');
       const dia = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       const recentes = await contar('tabela_solicitacoes?select=id&email=eq.' + encodeURIComponent(email) + '&criado_em=gte.' + encodeURIComponent(dia));
-      if (recentes >= 3) return res.status(200).json(generico);
+      if (recentes >= 3) return respostaStatus('limite');
       const pend = await contar('tabela_solicitacoes?select=id&email=eq.' + encodeURIComponent(email) + '&status=eq.pendente');
-      if (pend > 0) return res.status(200).json(generico);
+      if (pend > 0) return respostaStatus('pendente');
 
       const ins = await fetch(HUB_URL + '/rest/v1/tabela_solicitacoes', {
         method: 'POST', headers: { ...H, 'Prefer': 'return=minimal' },
@@ -262,13 +276,13 @@ async function acessoTabela(req, res) {
             '<tr><td style="color:#718096;padding:4px 0;vertical-align:top">Mensagem</td><td>' + escHtml(mensagem || '—') + '</td></tr></table>' +
             '<p style="text-align:center;margin:18px 0"><a href="https://app.boxersoldas.com.br/admin_supabase.html" style="background:#1d327b;color:#fff;text-decoration:none;padding:11px 24px;border-radius:8px;font-size:14px;font-weight:600">Abrir painel admin → aba Acessos</a></p>'));
       }
-      return res.status(200).json(generico);
+      return respostaStatus('solicitado');
     }
 
     return res.status(400).json({ error: 'acao invalida' });
   } catch (e) {
     console.error('Erro acesso tabela:', e);
-    return res.status(200).json(generico);
+    return respostaStatus('erro');
   }
 }
 
