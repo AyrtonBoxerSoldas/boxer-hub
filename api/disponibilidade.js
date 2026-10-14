@@ -62,10 +62,10 @@ const TABELA_CACHE_MS = 5 * 60 * 1000;
 async function previsaoTabela(req, res) {
   res.setHeader('Access-Control-Allow-Origin', 'https://app.boxersoldas.com.br');
   res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Vary', 'Origin');
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const SB_SERVICE = process.env.SUPABASE_SERVICE_KEY;
   const fupEmail = process.env.FUP_EMAIL;
@@ -95,11 +95,23 @@ async function previsaoTabela(req, res) {
     return res.status(403).json({ error: 'Acesso restrito a equipe interna' });
   }
 
-  const itens = String(req.query.itens || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 80).map(s => {
-    const [c, q] = s.split(':');
-    return { codigo: String(c || '').trim().toUpperCase(), qtd: parseInt(q, 10) };
-  }).filter(i => /^[A-Z0-9_-]{1,20}$/.test(i.codigo) && i.qtd > 0 && i.qtd <= 100000);
-  if (!itens.length) return res.status(400).json({ error: 'itens invalidos (use codigo:qtd,codigo:qtd)' });
+  // GET ?itens=codigo:qtd,... (consulta por quantidade)  |  POST {codigos:[...]} (lista toda, quantidade 1, para exportacao)
+  const LISTA_MAX = 1500;
+  let itens;
+  if (req.method === 'POST') {
+    let corpo = req.body;
+    if (typeof corpo === 'string') { try { corpo = JSON.parse(corpo); } catch (e) { corpo = {}; } }
+    itens = (Array.isArray(corpo && corpo.codigos) ? corpo.codigos : []).slice(0, LISTA_MAX)
+      .map(c => ({ codigo: String(c || '').trim().toUpperCase(), qtd: 1 }))
+      .filter(i => /^[A-Z0-9_-]{1,20}$/.test(i.codigo));
+    if (!itens.length) return res.status(400).json({ error: 'codigos invalidos' });
+  } else {
+    itens = String(req.query.itens || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 80).map(s => {
+      const [c, q] = s.split(':');
+      return { codigo: String(c || '').trim().toUpperCase(), qtd: parseInt(q, 10) };
+    }).filter(i => /^[A-Z0-9_-]{1,20}$/.test(i.codigo) && i.qtd > 0 && i.qtd <= 100000);
+    if (!itens.length) return res.status(400).json({ error: 'itens invalidos (use codigo:qtd,codigo:qtd)' });
+  }
   const codigos = [...new Set(itens.map(i => i.codigo))];
 
   try {
@@ -120,10 +132,17 @@ async function previsaoTabela(req, res) {
     }
     // O estoque nunca sai daqui: o navegador manda "codigo:qtd" e recebe so o veredito
     // (ok / previsao com data / sem previsao). Nenhum numero de saldo ou de remessa trafega.
-    const [hubRows, zenRows] = await Promise.all([
-      fetch(HUB_URL + '/rest/v1/hub_produtos?select=sku,estoque_disponivel&ativo=eq.true&sku=in.(' + codigos.map(c => '"' + c + '"').join(',') + ')', { headers: svc('comercial') }).then(r => r.ok ? r.json() : []),
-      fetch(HUB_URL + '/rest/v1/estoque_zenerp?select=codigo,quantity_balance&codigo=in.(' + codigos.map(c => '"' + c + '"').join(',') + ')', { headers: svc() }).then(r => r.ok ? r.json() : [])
-    ]);
+    const lotes = [];
+    for (let i = 0; i < codigos.length; i += 100) lotes.push(codigos.slice(i, i + 100));
+    const respostas = await Promise.all(lotes.map(lote => {
+      const lista = lote.map(c => '"' + c + '"').join(',');
+      return Promise.all([
+        fetch(HUB_URL + '/rest/v1/hub_produtos?select=sku,estoque_disponivel&ativo=eq.true&sku=in.(' + lista + ')', { headers: svc('comercial') }).then(r => r.ok ? r.json() : []),
+        fetch(HUB_URL + '/rest/v1/estoque_zenerp?select=codigo,quantity_balance&codigo=in.(' + lista + ')', { headers: svc() }).then(r => r.ok ? r.json() : [])
+      ]);
+    }));
+    const hubRows = respostas.flatMap(r => r[0]);
+    const zenRows = respostas.flatMap(r => r[1]);
     const estoque = {};
     (Array.isArray(zenRows) ? zenRows : []).forEach(z => { estoque[String(z.codigo).trim().toUpperCase()] = Math.max(Number(z.quantity_balance) || 0, 0); });
     (Array.isArray(hubRows) ? hubRows : []).forEach(h => { if (h.estoque_disponivel != null) estoque[String(h.sku).trim().toUpperCase()] = Number(h.estoque_disponivel) || 0; });
