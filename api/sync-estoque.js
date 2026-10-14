@@ -46,7 +46,7 @@ function lerCuboZenerp(label, zenToken, code, parameters) {
 }
 
 // Busca o ESTOQUE_ATUAL no ZenERP para cada codigo informado (ver docs/ESTOQUE_ATUAL_ZENERP.md):
-//   ESTOQUE_ATUAL = max(0, soma(quantity em MAQUINAS/PECAS) - soma(quantity_outgoing))
+//   ESTOQUE_ATUAL = max(0, soma(quantity em MAQUINAS/PECAS) + soma(quantity_outgoing))
 // - stockCube: estoque fisico por endereco, so enderecos com address_tags MAQUINAS ou PECAS.
 // - stockAvailabilityCube: quantity_outgoing (negativo = saida ja comprometida). A existencia
 //   do SKU e decidida por esta resposta: sem linha nela, o SKU e "nao encontrado" (estoque 0).
@@ -98,7 +98,8 @@ async function fetchEstoqueZenerp(zenToken, codigos) {
       return;
     }
     matched++;
-    porSku[codigo] = Math.max((somaFisico.get(codigo) || 0) - somaSaida.get(codigo), 0);
+    // somaSaida ja e negativo (saida comprometida), entao soma-se ao fisico
+    porSku[codigo] = Math.max((somaFisico.get(codigo) || 0) + somaSaida.get(codigo), 0);
   });
 
   console.log(`[Estoque] ${matched}/${codigos.length} codigo(s) encontrados na resposta do ZenERP.`);
